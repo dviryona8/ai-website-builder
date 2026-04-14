@@ -247,13 +247,13 @@ REQUIRED EFFECTS:
 - Nav: backdrop-filter:blur after 80px scroll (JS), mobile hamburger drawer
 
 SECTIONS (each section MUST have the exact id shown):
-1. <nav id="navbar"> — sticky, blur-on-scroll, ${form.logo ? 'logo img' : 'gradient text logo with business name'}, links href="#services" href="#${form.images.length > 0 ? 'gallery' : 'about'}" href="#testimonials" href="#contact", CTA btn, mobile hamburger toggle
-2. <section id="hero"> — 100vh, blobs bg, clamp(3rem,8vw,6rem) weight:900 gradient headline IN HEBREW (5-7 words, based on business description and tone), subtitle, 2 btns (href="#contact" + href="#services"), social-proof pill, bounce scroll arrow
+1. <nav id="navbar"> — sticky, blur-on-scroll, ${form.logo ? 'logo img' : 'gradient text logo with business name'}, links href="#services" href="#${form.images.length > 0 ? 'gallery' : 'about'}" href="#contact", CTA btn, mobile hamburger toggle
+2. <section id="hero"> — 100vh, blobs bg, clamp(3rem,8vw,6rem) weight:900 gradient headline IN HEBREW (5-7 words, based on business description and tone), subtitle, 2 btns (href="#contact" + href="#services"), bounce scroll arrow
 3. <section id="stats"> — dark band, 4 count-up numbers, metrics relevant to ${businessTypeLabel}
 4. <section id="services"> — 6+ glassmorphism cards (FA icon, title, desc); ${form.sources.length > 0 ? 'use real services from sources' : `${businessTypeLabel}-specific`}
 5. <section id="${form.images.length > 0 ? 'gallery' : 'about'}"> — ${form.images.length > 0 ? 'css grid gallery, provided images, hover zoom overlay' : `split layout, gradient decoration, story, checkmark list`}
-6. <section id="testimonials"> — 3 cards (★★★★★, quote, gradient avatar, first name only)
-7. <section id="cta-band"> — full-width primary gradient, bold headline, white button href="#contact"
+6. <section id="cta-band"> — full-width primary gradient, bold headline, white button href="#contact"
+⚠️ DO NOT add a testimonials section — no fake reviews allowed under any circumstances.
 8. <section id="contact"> — 2col:
   LEFT: contact form — use EXACTLY this HTML+JS structure:
   <form id="contactForm">
