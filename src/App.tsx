@@ -248,50 +248,23 @@ DESIGN SYSTEM (:root CSS vars):
 --primary:${c}; --bg:#080810; --surface:#0f0f1a; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --text:#f2f2f8; --muted:#7a7a9a;
 Font: ${isHe ? 'Heebo' : 'Inter'} from Google Fonts (400,600,700,800,900). Icons: Font Awesome 6 CDN.
 
-REQUIRED EFFECTS:
-- Hero: 3 animated gradient blobs (@keyframes, radial-gradient, filter:blur) + dot-grid overlay (radial-gradient 1px dots, 32px grid)
-- Gradient headline: linear-gradient(135deg,${c},#a78bfa) background-clip:text
-- Cards: backdrop-filter:blur(20px), var(--card) bg, 1px var(--border), border-radius:20px, hover→scale(1.03)+glow
-- Scroll reveal: IntersectionObserver → opacity:0 translateY(40px) → opacity:1 translateY(0), staggered delays
-- Count-up: JS IntersectionObserver triggers number animation
-- Nav: backdrop-filter:blur after 80px scroll (JS), mobile hamburger drawer
+SECTIONS: nav(sticky,blur-scroll,hamburger) → hero(100vh,gradient-blobs,big headline,2 btns) → stats(4 count-up numbers) → services(6 glassmorphism cards,FA icons) → ${form.images.length > 0 ? 'gallery(css grid,provided images)' : 'about(split layout,story)'} → cta-band(gradient,big CTA) → contact(2col: LEFT form + RIGHT info) → footer
+⚠️ NO testimonials section whatsoever.
 
-SECTIONS (each section MUST have the exact id shown):
-1. <nav id="navbar"> — sticky, blur-on-scroll, ${form.logo ? 'logo img' : 'gradient text logo with business name'}, links href="#services" href="#${form.images.length > 0 ? 'gallery' : 'about'}" href="#contact", CTA btn, mobile hamburger toggle
-2. <section id="hero"> — 100vh, blobs bg, clamp(3rem,8vw,6rem) weight:900 gradient headline IN HEBREW (5-7 words, based on business description and tone), subtitle, 2 btns (href="#contact" + href="#services"), bounce scroll arrow
-3. <section id="stats"> — dark band, 4 count-up numbers, metrics relevant to ${businessTypeLabel}
-4. <section id="services"> — 6+ glassmorphism cards (FA icon, title, desc); ${form.sources.length > 0 ? 'use real services from sources' : `${businessTypeLabel}-specific`}
-5. <section id="${form.images.length > 0 ? 'gallery' : 'about'}"> — ${form.images.length > 0 ? 'css grid gallery, provided images, hover zoom overlay' : `split layout, gradient decoration, story, checkmark list`}
-6. <section id="cta-band"> — full-width primary gradient, bold headline, white button href="#contact"
-⚠️ DO NOT add a testimonials section — no fake reviews allowed under any circumstances.
-8. <section id="contact"> — 2col:
-  LEFT: contact form — use EXACTLY this HTML+JS structure:
-  <form id="contactForm">
-    <input type="text" id="cf-name" placeholder="${isHe ? 'שם מלא' : 'Full Name'}" required>
-    <input type="email" id="cf-email" placeholder="${isHe ? 'אימייל' : 'Email'}" required>
-    <input type="tel" id="cf-phone" placeholder="${isHe ? 'טלפון' : 'Phone'}">
-    <textarea id="cf-message" placeholder="${isHe ? 'הודעה' : 'Message'}" required></textarea>
-    <button type="submit">${isHe ? 'שלח הודעה' : 'Send Message'}</button>
-  </form>
-  <div id="cf-success" style="display:none">${isHe ? '✅ ההודעה נשלחה בהצלחה!' : '✅ Message sent successfully!'}</div>
-  JS onsubmit: e.preventDefault(); collect fields; ${form.email ? `window.location.href = 'mailto:${form.email}?subject=${encodeURIComponent('פנייה חדשה מהאתר - ' + form.businessName)}&body='+encodeURIComponent('שם: '+name+'\\nאימייל: '+email+'\\nטלפון: '+phone+'\\nהודעה: '+message);` : ''} show #cf-success, hide form.
-  Style all inputs with the design system.
-  RIGHT: contact info cards (phone as <a href="tel:${form.phone}">, email as <a href="mailto:${form.email}">, address) + hours table + map placeholder
-9. <footer id="footer"> — logo, nav links, FA social icons, copyright
+CONTACT FORM (left col):
+<form id="contactForm">
+  <input type="text" id="cf-name" placeholder="${isHe ? 'שם מלא' : 'Full Name'}" required>
+  <input type="email" id="cf-email" placeholder="${isHe ? 'אימייל' : 'Email'}" required>
+  <input type="tel" id="cf-phone" placeholder="${isHe ? 'טלפון' : 'Phone'}">
+  <textarea id="cf-message" placeholder="${isHe ? 'הודעה' : 'Message'}" required></textarea>
+  <button type="submit">${isHe ? 'שלח הודעה' : 'Send Message'}</button>
+</form>
+JS: onsubmit→e.preventDefault();${form.email ? `window.location.href='mailto:${form.email}?subject=${encodeURIComponent('פנייה - ' + form.businessName)}&body='+encodeURIComponent(document.getElementById('cf-name').value+' '+document.getElementById('cf-message').value);` : ''} hide form, show "✅ ${isHe ? 'נשלח!' : 'Sent!'}"
+RIGHT col: phone <a href="tel:${phoneVal}">${phoneVal}</a>, ${emailVal ? `email <a href="mailto:${emailVal}">${emailVal}</a>,` : ''} address, hours table.
+FLOATING: WhatsApp <a href="https://wa.me/${waNum}"> green fixed circle + scroll-to-top btn.
 
-FLOATING: WhatsApp <a href="https://wa.me/${waNum}" target="_blank"> green circle, pulse animation; scroll-to-top btn (onclick window.scrollTo top)
-
-CRITICAL — FORBIDDEN TO INVENT CONTACT DATA:
-• PHONE in HTML must be EXACTLY: ${phoneVal} — hard-code this string, never a different number
-• EMAIL in HTML must be EXACTLY: ${emailVal || '(omit)'} — hard-code this string, never a different email
-• ADDRESS in HTML must be EXACTLY: ${addressVal || '(omit)'} — never invent a location
-• WhatsApp href must be EXACTLY: https://wa.me/${waNum}
-• Stats: use ONLY generic plausible numbers (e.g. "500+ לקוחות", "10+ שנות ניסיון") — NO fake awards, certifications, or specific claims not provided
-• Testimonials: use ONLY first names (e.g. "דני", "רחל") — NO last names, NO fake job titles, NO invented companies
-• DO NOT invent: years established, specific achievements, awards, media appearances, or any facts not given in the description
-
-RULES: All CSS in <style>, JS in <script>. Google Fonts + FA6 CDN only. Responsive mobile-first. ${isHe ? `ALL text Hebrew — EXCEPT the business name "${form.businessName}" which must stay exactly as written.` : 'ALL text English.'} ${form.sources.length > 0 ? 'Use real content from sources — no generic placeholders.' : ''}
-
+RULES: CSS in <style>, JS in <script>. Google Fonts(${isHe ? 'Heebo' : 'Inter'})+FA6 CDN. Mobile-first responsive. ${isHe ? `Hebrew text, dir="rtl". Business name stays: "${form.businessName}"` : 'English text.'}
+NO fake testimonials. NO invented phone/email/address — use ONLY the data provided above.
 START WITH <!DOCTYPE html>`
 }
 
@@ -412,7 +385,7 @@ function BusinessHoursEditor({
 function tryOpenAI(url: string, apiKey: string | null, model: string, maxTokens: number, messages: {role: string, content: string}[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 90000)
+    const timeoutId = setTimeout(() => controller.abort(), 20000)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (apiKey) {
       headers['Authorization'] = `Bearer ${apiKey}`
@@ -609,7 +582,7 @@ export default function App() {
       if (!html) {
         try {
           const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 45000)
+          const timeoutId = setTimeout(() => controller.abort(), 25000)
           const res = await fetch('https://text.pollinations.ai/', {
             method: 'POST',
             signal: controller.signal,
@@ -738,7 +711,7 @@ ${htmlForPrompt}`
       if (!html) {
         try {
           const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 45000)
+          const timeoutId = setTimeout(() => controller.abort(), 25000)
           const res = await fetch('https://text.pollinations.ai/', {
             method: 'POST', signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
