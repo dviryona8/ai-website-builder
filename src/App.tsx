@@ -671,16 +671,24 @@ export default function App() {
     setRefineLoading(true)
     setRefineError(null)
 
-    // Rebuild from scratch with the refinement instruction added — more reliable than editing HTML
+    // Use a minimal prompt to save tokens — just the essentials + the change request
+    const isHe = form.language === 'he'
+    const phoneVal = form.phone || '050-0000000'
+    const emailVal = form.email || ''
+    const waNum = phoneVal.replace(/\D/g, '')
+    const minimalPrompt = `Build a dark-theme single-page website. Output ONLY raw HTML.
+BUSINESS: ${form.businessName} | ${BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || form.businessType}
+DESCRIPTION: ${form.description || ''}
+PHONE: ${phoneVal} | EMAIL: ${emailVal || 'none'} | WHATSAPP: https://wa.me/${waNum}
+COLOR: ${form.primaryColor} | LANG: ${isHe ? 'Hebrew RTL (Heebo font)' : 'English LTR (Inter font)'}
+IMPORTANT CHANGE: ${refinementInput}
+Sections: nav, hero, services, about, contact (with form + info), footer. No testimonials.
+Contact form: JS mailto to ${emailVal || 'owner'}. WhatsApp floating button.
+START WITH <!DOCTYPE html>`
+
     const messages = [
-      {
-        role: 'system' as const,
-        content: 'You are an elite front-end developer. Output only raw HTML/CSS/JS — no markdown, no explanations.',
-      },
-      {
-        role: 'user' as const,
-        content: buildPrompt(form) + `\n\nADDITIONAL REQUIREMENT: ${refinementInput}`,
-      },
+      { role: 'system' as const, content: 'Elite front-end developer. Raw HTML only.' },
+      { role: 'user' as const, content: minimalPrompt },
     ]
 
     try {
