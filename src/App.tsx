@@ -408,6 +408,27 @@ function tryOpenAI(url: string, apiKey: string | null, model: string, maxTokens:
   })
 }
 
+function tryPollinations(messages: {role: string, content: string}[], maxTokens: number): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 58000)
+    fetch('https://text.pollinations.ai/openai', {
+      method: 'POST', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'openai-large', messages, max_tokens: maxTokens, seed: Math.floor(Math.random() * 99999) }),
+    })
+      .then(async res => {
+        clearTimeout(timeoutId)
+        if (!res.ok) { reject(new Error(`Pollinations ${res.status}`)); return }
+        const data = await res.json()
+        const content = data.choices?.[0]?.message?.content?.trim() ?? ''
+        if (content && content.length > 200) resolve(content)
+        else reject(new Error('Pollinations empty'))
+      })
+      .catch(err => { clearTimeout(timeoutId); reject(err) })
+  })
+}
+
 export default function App() {
   const [form, setForm] = useState<BusinessForm>({
     businessName: '',
@@ -568,56 +589,19 @@ export default function App() {
     try {
       let html = ''
 
-      const call = (url: string, key: string | null, model: string, tok: number) => tryOpenAI(url, key, model, tok, messages)
-
-      // 1. Try Groq — use fast 8b model first, fallback to 70b
-      if (groqKey && !html) {
-        try { html = await call('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000) } catch { /* */ }
+      // Race ALL providers simultaneously — fastest wins
+      const allAttempts: Promise<string>[] = []
+      if (groqKey) {
+        allAttempts.push(tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages))
+        allAttempts.push(tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages))
       }
-      if (groqKey && !html) {
-        try { html = await call('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000) } catch { /* */ }
-      }
-
-      // 2. Try Pollinations.ai (completely free, no API key)
-      if (!html) {
-        try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 25000)
-          const res = await fetch('https://text.pollinations.ai/', {
-            method: 'POST',
-            signal: controller.signal,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: 'openai-large',
-              messages,
-              max_tokens: 5000,
-              seed: Math.floor(Math.random() * 99999),
-            }),
-          })
-          clearTimeout(timeoutId)
-          if (res.ok) {
-            const data = await res.json()
-            const content = data.choices?.[0]?.message?.content?.trim() ?? ''
-            if (content && content.length > 200) html = content
-          }
-        } catch { /* fall through */ }
+      allAttempts.push(tryPollinations(messages, 5000))
+      if (openrouterKey) {
+        const freeModels = ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'openai/gpt-oss-120b:free', 'google/gemma-4-31b-it:free']
+        freeModels.forEach(m => allAttempts.push(tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
       }
 
-      // 3. Try OpenRouter free models in parallel
-      if (!html && openrouterKey) {
-        const freeModels = [
-          'qwen/qwen3-coder:free',
-          'meta-llama/llama-3.3-70b-instruct:free',
-          'openai/gpt-oss-120b:free',
-          'google/gemma-4-31b-it:free',
-          'nousresearch/hermes-3-llama-3.1-405b:free',
-        ]
-        try {
-          html = await Promise.any(freeModels.map(m =>
-            call('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000)
-          ))
-        } catch { /* fall through */ }
-      }
+      try { html = await Promise.any(allAttempts) } catch { /* all failed */ }
 
       if (!html) throw new Error('כל ספקי ה-AI מוגבלים כרגע — נסה שוב עוד כמה דקות')
 
@@ -671,96 +655,50 @@ export default function App() {
     setRefineLoading(true)
     setRefineError(null)
 
-    // Use a minimal prompt to save tokens — just the essentials + the change request
     const isHe = form.language === 'he'
     const phoneVal = form.phone || '050-0000000'
     const emailVal = form.email || ''
     const waNum = phoneVal.replace(/\D/g, '')
-    const minimalPrompt = `Build a dark-theme single-page website. Output ONLY raw HTML.
+
+    const refinePrompt = `Build a dark-theme single-page website. Output ONLY raw HTML, no markdown.
 BUSINESS: ${form.businessName} | ${BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || form.businessType}
 DESCRIPTION: ${form.description || ''}
 PHONE: ${phoneVal} | EMAIL: ${emailVal || 'none'} | WHATSAPP: https://wa.me/${waNum}
 COLOR: ${form.primaryColor} | LANG: ${isHe ? 'Hebrew RTL (Heebo font)' : 'English LTR (Inter font)'}
-IMPORTANT CHANGE: ${refinementInput}
-Sections: nav, hero, services, about, contact (with form + info), footer. No testimonials.
-Contact form: JS mailto to ${emailVal || 'owner'}. WhatsApp floating button.
+IMPORTANT CHANGE TO APPLY: ${refinementInput}
+Sections: nav, hero, services, about, contact (form + info), footer. No testimonials.
+Contact form: JS mailto. WhatsApp floating button.
 START WITH <!DOCTYPE html>`
 
     const messages = [
-      { role: 'system' as const, content: 'Elite front-end developer. Raw HTML only.' },
-      { role: 'user' as const, content: minimalPrompt },
+      { role: 'system' as const, content: 'You are an elite front-end developer. Output only raw HTML — no markdown, no explanations.' },
+      { role: 'user' as const, content: refinePrompt },
     ]
 
     try {
       let html = ''
-      const errors: string[] = []
-      const wait = (ms: number) => new Promise(r => setTimeout(r, ms))
-      const rcall = (url: string, key: string | null, model: string, tok: number) => tryOpenAI(url, key, model, tok, messages)
 
-      // 1. Groq — try with auto-retry on rate limit
-      const tryGroq = async (model: string) => {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          try {
-            const result = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, model, 4000)
-            return result
-          } catch (e) {
-            const msg = e instanceof Error ? e.message : String(e)
-            if (msg.includes('429') || msg.includes('rate') || msg.includes('limit')) {
-              if (attempt < 2) await wait(15000) // wait 15s then retry
-              else throw e
-            } else throw e
-          }
-        }
-        return ''
+      // Race ALL providers simultaneously — fastest wins
+      const allAttempts: Promise<string>[] = []
+      if (groqKey) {
+        allAttempts.push(tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages))
+        allAttempts.push(tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages))
+      }
+      allAttempts.push(tryPollinations(messages, 5000))
+      if (openrouterKey) {
+        const freeModels = ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'openai/gpt-oss-120b:free', 'google/gemma-4-31b-it:free']
+        freeModels.forEach(m => allAttempts.push(tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
       }
 
-      if (groqKey && !html) {
-        try { html = await tryGroq('llama-3.1-8b-instant') }
-        catch (e) { errors.push(`Groq-8b: ${e instanceof Error ? e.message : e}`) }
-      }
-      if (groqKey && !html) {
-        try { html = await tryGroq('llama-3.3-70b-versatile') }
-        catch (e) { errors.push(`Groq-70b: ${e instanceof Error ? e.message : e}`) }
-      }
-      // 3. Pollinations.ai
-      if (!html) {
-        try {
-          const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 25000)
-          const res = await fetch('https://text.pollinations.ai/openai', {
-            method: 'POST', signal: controller.signal,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: 'openai-large', messages, max_tokens: 5000, seed: Math.floor(Math.random() * 99999) }),
-          })
-          clearTimeout(timeoutId)
-          if (res.ok) {
-            const data = await res.json()
-            const c = data.choices?.[0]?.message?.content?.trim() ?? ''
-            if (c && c.length > 200) html = c
-            else errors.push(`Pollinations: empty (${c.length} chars)`)
-          } else {
-            errors.push(`Pollinations: ${res.status}`)
-          }
-        } catch (e) { errors.push(`Pollinations: ${e instanceof Error ? e.message : e}`) }
-      }
-      // 4. OpenRouter
-      if (!html && openrouterKey) {
-        try {
-          html = await Promise.any(['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'google/gemma-4-31b-it:free'].map(m =>
-            rcall('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000)
-          ))
-        } catch (e) { errors.push(`OpenRouter: ${e instanceof Error ? e.message : e}`) }
-      }
+      try { html = await Promise.any(allAttempts) } catch { /* all failed */ }
 
-      if (!html) throw new Error(`שגיאה: ${errors.join(' | ')}`)
+      if (!html) throw new Error('כל ספקי ה-AI עסוקים כרגע — נסה שוב עוד כמה דקות')
 
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
 
-      // Re-inject images after refinement
       if (form.logo) html = html.replaceAll('__LOGO__', form.logo)
       form.images.forEach((src, i) => { html = html.replaceAll(`__IMG_${i + 1}__`, src) })
 
-      // Remove fake testimonials and fix contact form after refinement too
       html = removeTestimonials(html)
       html = fixContactForm(html, form.email, form.businessName)
 
