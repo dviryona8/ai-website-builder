@@ -127,6 +127,46 @@ function formatHoursForPrompt(hours: Record<string, DayHours>): string {
   }).join('\n')
 }
 
+function fixContactForm(html: string, email: string, businessName: string): string {
+  // Replace any FormSubmit form with a mailto-based JS form
+  if (!html.includes('formsubmit.co')) return html
+
+  const mailtoScript = `
+<script>
+(function(){
+  var forms = document.querySelectorAll('form[action*="formsubmit.co"]');
+  forms.forEach(function(form){
+    form.removeAttribute('action');
+    form.removeAttribute('method');
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var name = (form.querySelector('[name="name"],[placeholder*="שם"],[placeholder*="Name"]') || {value:''}).value;
+      var emailVal = (form.querySelector('[name="email"],[type="email"]') || {value:''}).value;
+      var phone = (form.querySelector('[name="phone"],[type="tel"]') || {value:''}).value;
+      var msg = (form.querySelector('[name="message"],textarea') || {value:''}).value;
+      var body = encodeURIComponent('שם: '+name+'\\nאימייל: '+emailVal+'\\nטלפון: '+phone+'\\nהודעה: '+msg);
+      window.location.href = 'mailto:${email}?subject=${encodeURIComponent('פנייה חדשה מהאתר - ' + businessName)}&body='+body;
+      form.style.display='none';
+      var ok = document.createElement('div');
+      ok.textContent = '✅ ההודעה נשלחה בהצלחה!';
+      ok.style.cssText = 'color:#4ade80;font-size:1.2rem;padding:2rem;text-align:center;';
+      form.parentNode.insertBefore(ok, form.nextSibling);
+    });
+    // Remove hidden FormSubmit inputs
+    form.querySelectorAll('[name="_subject"],[name="_captcha"],[name="_template"],[name="_next"]').forEach(function(el){el.remove();});
+  });
+})();
+</script>`
+
+  // Insert before </body>
+  if (html.includes('</body>')) {
+    html = html.replace('</body>', mailtoScript + '\n</body>')
+  } else {
+    html += mailtoScript
+  }
+  return html
+}
+
 function buildPrompt(form: BusinessForm): string {
   const businessTypeLabel = BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || form.businessType
   const isHe = form.language === 'he'
@@ -236,8 +276,9 @@ CRITICAL — FORBIDDEN TO INVENT CONTACT DATA:
 • EMAIL in HTML must be EXACTLY: ${emailVal || '(omit)'} — hard-code this string, never a different email
 • ADDRESS in HTML must be EXACTLY: ${addressVal || '(omit)'} — never invent a location
 • WhatsApp href must be EXACTLY: https://wa.me/${waNum}
-• Stats: plausible generic numbers only — no fake awards/certifications
-• Testimonials: first names only
+• Stats: use ONLY generic plausible numbers (e.g. "500+ לקוחות", "10+ שנות ניסיון") — NO fake awards, certifications, or specific claims not provided
+• Testimonials: use ONLY first names (e.g. "דני", "רחל") — NO last names, NO fake job titles, NO invented companies
+• DO NOT invent: years established, specific achievements, awards, media appearances, or any facts not given in the description
 
 RULES: All CSS in <style>, JS in <script>. Google Fonts + FA6 CDN only. Responsive mobile-first. ${isHe ? `ALL text Hebrew — EXCEPT the business name "${form.businessName}" which must stay exactly as written.` : 'ALL text English.'} ${form.sources.length > 0 ? 'Use real content from sources — no generic placeholders.' : ''}
 
@@ -585,6 +626,9 @@ export default function App() {
         html = html.replaceAll(`__IMG_${i + 1}__`, src)
       })
 
+      // Fix contact form: replace any FormSubmit action with mailto JS handler
+      html = fixContactForm(html, form.email, form.businessName)
+
       setGeneratedHtml(html)
     } catch (err) {
       const msg = err instanceof Error
@@ -699,6 +743,9 @@ ${htmlForPrompt}`
       // Re-inject images after refinement
       if (form.logo) html = html.replaceAll('__LOGO__', form.logo)
       form.images.forEach((src, i) => { html = html.replaceAll(`__IMG_${i + 1}__`, src) })
+
+      // Fix contact form after refinement too
+      html = fixContactForm(html, form.email, form.businessName)
 
       setPreviousHtml(generatedHtml)
       setGeneratedHtml(html)
