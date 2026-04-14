@@ -433,6 +433,16 @@ function BusinessHoursEditor({
   )
 }
 
+function isValidHtml(content: string): boolean {
+  // Must be a proper full-page HTML with key sections
+  if (content.length < 4000) return false
+  if (!content.includes('<!DOCTYPE') && !content.includes('<html')) return false
+  if (!content.includes('<nav') && !content.includes('<header')) return false
+  if (!content.includes('<section')) return false
+  if (!content.includes('</html>')) return false
+  return true
+}
+
 function tryOpenAI(url: string, apiKey: string | null, model: string, maxTokens: number, messages: {role: string, content: string}[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const controller = new AbortController()
@@ -452,35 +462,36 @@ function tryOpenAI(url: string, apiKey: string | null, model: string, maxTokens:
         if (!res.ok) { const e = await res.json().catch(() => ({})); reject(new Error(`${res.status}: ${e?.error?.message || ''}`)); return }
         const data = await res.json()
         const content = data.choices?.[0]?.message?.content?.trim() ?? ''
-        if (content && content.length > 200) resolve(content)
-        else reject(new Error('empty response'))
+        if (isValidHtml(content)) resolve(content)
+        else reject(new Error(`bad HTML (${content.length} chars)`))
       })
       .catch(err => { clearTimeout(timeoutId); reject(err) })
   })
 }
 
-function tryPollinations(messages: {role: string, content: string}[], maxTokens: number, model = 'openai-large'): Promise<string> {
+function tryPollinations(messages: {role: string, content: string}[], maxTokens: number): Promise<string> {
+  // Only use openai-large (GPT-4o equivalent) — smaller models produce broken HTML
   return new Promise((resolve, reject) => {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 55000)
     fetch('https://text.pollinations.ai/openai', {
       method: 'POST', signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, messages, max_tokens: maxTokens, stream: false, seed: Math.floor(Math.random() * 99999) }),
+      body: JSON.stringify({ model: 'openai-large', messages, max_tokens: maxTokens, stream: false, seed: Math.floor(Math.random() * 99999) }),
     })
       .then(async res => {
         clearTimeout(timeoutId)
         if (!res.ok) {
           const txt = await res.text().catch(() => '')
-          reject(new Error(`Pollinations(${model}) ${res.status}: ${txt.slice(0, 80)}`))
+          reject(new Error(`Pollinations ${res.status}: ${txt.slice(0, 80)}`))
           return
         }
         const data = await res.json().catch(() => null)
         const content = data?.choices?.[0]?.message?.content?.trim() ?? ''
-        if (content && content.length > 100) resolve(content)
-        else reject(new Error(`Pollinations(${model}) empty(${content.length})`))
+        if (isValidHtml(content)) resolve(content)
+        else reject(new Error(`Pollinations bad HTML (${content.length} chars)`))
       })
-      .catch(err => { clearTimeout(timeoutId); reject(new Error(`Pollinations(${model}) fetch: ${err?.message}`)) })
+      .catch(err => { clearTimeout(timeoutId); reject(new Error(`Pollinations fetch: ${err?.message}`)) })
   })
 }
 
@@ -650,15 +661,15 @@ export default function App() {
       const track = (name: string, p: Promise<string>) =>
         p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
 
-      // Wave 1: Race all providers simultaneously
+      // Wave 1: Race strong models only (weak models produce broken HTML)
       const wave1: Promise<string>[] = [
-        track('Poll-openai', tryPollinations(messages, 5000, 'openai')),
-        track('Poll-large', tryPollinations(messages, 5000, 'openai-large')),
-        track('Poll-mistral', tryPollinations(messages, 5000, 'mistral')),
+        track('Pollinations', tryPollinations(messages, 5000)),
+        track('Pollinations-2', tryPollinations(messages, 5000)),
       ]
       if (groqKey) wave1.push(track('Groq-8b', tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages)))
       if (openrouterKey) {
-        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free', 'mistralai/mistral-7b-instruct:free'].forEach(m =>
+        // Only large/capable models for HTML generation
+        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free'].forEach(m =>
           wave1.push(track(`OR-${m.split('/')[1]}`, tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
         )
       }
@@ -751,15 +762,15 @@ START WITH <!DOCTYPE html>`
       const track = (name: string, p: Promise<string>) =>
         p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
 
-      // Wave 1: Race all providers simultaneously
+      // Wave 1: Race strong models only (weak models produce broken HTML)
       const wave1: Promise<string>[] = [
-        track('Poll-openai', tryPollinations(messages, 5000, 'openai')),
-        track('Poll-large', tryPollinations(messages, 5000, 'openai-large')),
-        track('Poll-mistral', tryPollinations(messages, 5000, 'mistral')),
+        track('Pollinations', tryPollinations(messages, 5000)),
+        track('Pollinations-2', tryPollinations(messages, 5000)),
       ]
       if (groqKey) wave1.push(track('Groq-8b', tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages)))
       if (openrouterKey) {
-        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free', 'mistralai/mistral-7b-instruct:free'].forEach(m =>
+        // Only large/capable models for HTML generation
+        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free'].forEach(m =>
           wave1.push(track(`OR-${m.split('/')[1]}`, tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
         )
       }
