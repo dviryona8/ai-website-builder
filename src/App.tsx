@@ -177,6 +177,26 @@ function fixContactForm(html: string, email: string, businessName: string): stri
   return html
 }
 
+function removeStats(html: string): string {
+  // Remove sections containing invented statistics (count-up numbers, fake client counts, etc.)
+  html = html.replace(/<section[^>]*(?:class|id)="[^"]*stats[^"]*"[^>]*>[\s\S]*?<\/section>/gi, '')
+  html = html.replace(/<div[^>]*(?:class|id)="[^"]*stats[^"]*"[^>]*>[\s\S]*?<\/div>\s*<\/(?:section|div)>/gi, '')
+  // Remove nav links to removed sections
+  html = html.replace(/<a[^>]*href="#stats[^"]*"[^>]*>[\s\S]*?<\/a>/gi, '')
+  return html
+}
+
+function fixBusinessName(html: string, businessName: string): string {
+  if (!businessName) return html
+  // If the name already appears correctly, we're done
+  if (html.includes(businessName)) return html
+  // Replace first <a> or <span> that looks like a logo/brand name in the nav
+  // Strategy: inject the name into the first nav brand element
+  html = html.replace(/(<(?:a|span|div)[^>]*(?:class|id)="[^"]*(?:logo|brand|nav-brand|navbar-brand|site-name)[^"]*"[^>]*>)([^<]{1,60})(<\/)/i,
+    `$1${businessName}$3`)
+  return html
+}
+
 function injectBusinessData(html: string, phone: string, email: string, address: string): string {
   // Force-inject the real business data regardless of what the AI generated
   if (phone && phone.trim()) {
@@ -256,15 +276,17 @@ ${form.sources.map((s, i) => `--- Source ${i + 1}: ${s.name} ---\n${s.content}`)
 
   return `Build a premium dark-theme single-page website. Output ONLY raw HTML (no markdown).
 
-⚠️ MANDATORY REAL DATA — USE EXACTLY AS-IS, NO SUBSTITUTIONS:
-  PHONE: ${phoneVal}  ← display this exact number everywhere, <a href="tel:${phoneVal}">
-  EMAIL: ${emailVal || '(none)'}  ← display this exact email everywhere${emailVal ? `, <a href="mailto:${emailVal}">` : ', omit if none'}
-  ADDRESS: ${addressVal || '(none)'}  ← display this exact address, omit if none
-  WHATSAPP: https://wa.me/${waNum}  ← use this exact URL
-  BUSINESS NAME: ${form.businessName}  ← never translate or alter
+⚠️ MANDATORY DATA — COPY EXACTLY, ZERO MODIFICATIONS:
+  BUSINESS NAME: "${form.businessName}" ← write THESE EXACT CHARACTERS in nav logo, hero title, footer. NEVER transliterate, translate, or alter it in any way.
+  PHONE: ${phoneVal} ← every tel: link and visible number must show this exact string
+  EMAIL: ${emailVal || '(none)'} ← every mailto: link${emailVal ? '' : ', omit if none'}
+  ADDRESS: ${addressVal || '(none)'}${addressVal ? '' : ' ← omit if none'}
+  WHATSAPP: https://wa.me/${waNum}
+
+⚠️ NO INVENTED DATA: Do NOT invent statistics, numbers of clients, years of experience, or any other numerical claims not mentioned in the description. If the user did not provide these numbers, do not include them.
 
 BUSINESS: ${form.businessName} | ${businessTypeLabel} | ${form.description || ''}
-COLOR: ${c} | LANG: ${isHe ? 'Hebrew, dir="rtl" on <html>' : 'English LTR'} | TONE: ${tone}
+COLOR: ${c} | LANG: ${isHe ? 'Hebrew text (dir="rtl"), but keep business name as-is' : 'English LTR'} | TONE: ${tone}
 HOURS: ${hoursText.replace(/\n/g, ' | ')}
 ${sourcesSection}
 LOGO: ${form.logo ? 'Use base64 URI below as <img src> in nav+hero' : 'Text logo with gradient'}
@@ -276,8 +298,8 @@ DESIGN SYSTEM (:root CSS vars):
 --primary:${c}; --bg:#080810; --surface:#0f0f1a; --card:rgba(255,255,255,0.04); --border:rgba(255,255,255,0.08); --text:#f2f2f8; --muted:#7a7a9a;
 Font: ${isHe ? 'Heebo' : 'Inter'} from Google Fonts (400,600,700,800,900). Icons: Font Awesome 6 CDN.
 
-SECTIONS: nav(sticky,blur-scroll,hamburger) → hero(100vh,gradient-blobs,big headline,2 btns) → stats(4 count-up numbers) → services(6 glassmorphism cards,FA icons) → ${form.images.length > 0 ? 'gallery(css grid,provided images)' : 'about(split layout,story)'} → cta-band(gradient,big CTA) → contact(2col: LEFT form + RIGHT info) → footer
-⚠️ NO testimonials section whatsoever.
+SECTIONS: nav(sticky,blur-scroll,hamburger) → hero(100vh,gradient-blobs,big headline,2 btns) → services(6 glassmorphism cards,FA icons) → ${form.images.length > 0 ? 'gallery(css grid,provided images)' : 'about(split layout,story)'} → cta-band(gradient,big CTA) → contact(2col: LEFT form + RIGHT info) → footer
+⚠️ NO testimonials section. NO fake stats section with invented numbers.
 
 CONTACT FORM (left col):
 <form id="contactForm">
@@ -291,8 +313,9 @@ JS: onsubmit→e.preventDefault();${form.email ? `window.location.href='mailto:$
 RIGHT col: phone <a href="tel:${phoneVal}">${phoneVal}</a>, ${emailVal ? `email <a href="mailto:${emailVal}">${emailVal}</a>,` : ''} address, hours table.
 FLOATING: WhatsApp <a href="https://wa.me/${waNum}"> green fixed circle + scroll-to-top btn.
 
-RULES: CSS in <style>, JS in <script>. Google Fonts(${isHe ? 'Heebo' : 'Inter'})+FA6 CDN. Mobile-first responsive. ${isHe ? `Hebrew text, dir="rtl". Business name stays: "${form.businessName}"` : 'English text.'}
-NO fake testimonials. NO invented phone/email/address — use ONLY the data provided above.
+RULES: CSS in <style>, JS in <script>. Google Fonts(${isHe ? 'Heebo' : 'Inter'})+FA6 CDN. Mobile-first responsive.
+THE BUSINESS NAME "${form.businessName}" MUST APPEAR EXACTLY AS TYPED — NOT transliterated into ${isHe ? 'Hebrew letters' : 'other characters'}.
+NO fake testimonials. NO invented numbers. Use ONLY data provided above.
 START WITH <!DOCTYPE html>`
 }
 
@@ -662,8 +685,10 @@ export default function App() {
 
       // Post-process: remove testimonials, fix contact form, inject real business data
       html = removeTestimonials(html)
+      html = removeStats(html)
       html = fixContactForm(html, form.email, form.businessName)
       html = injectBusinessData(html, form.phone, form.email, form.address)
+      html = fixBusinessName(html, form.businessName)
 
       setGeneratedHtml(html)
     } catch (err) {
@@ -754,8 +779,10 @@ START WITH <!DOCTYPE html>`
       form.images.forEach((src, i) => { html = html.replaceAll(`__IMG_${i + 1}__`, src) })
 
       html = removeTestimonials(html)
+      html = removeStats(html)
       html = fixContactForm(html, form.email, form.businessName)
       html = injectBusinessData(html, form.phone, form.email, form.address)
+      html = fixBusinessName(html, form.businessName)
 
       setPreviousHtml(generatedHtml)
       setGeneratedHtml(html)
