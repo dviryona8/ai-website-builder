@@ -596,7 +596,12 @@ export default function App() {
             .catch(err => { clearTimeout(timeoutId); reject(err) })
         })
 
-      // 1. Try Groq
+      // 1. Try Groq — use fast 8b model first, fallback to 70b
+      if (groqKey && !html) {
+        try {
+          html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000)
+        } catch { /* fall through */ }
+      }
       if (groqKey && !html) {
         try {
           html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000)
@@ -607,7 +612,7 @@ export default function App() {
       if (!html) {
         try {
           const controller = new AbortController()
-          const timeoutId = setTimeout(() => controller.abort(), 90000)
+          const timeoutId = setTimeout(() => controller.abort(), 45000)
           const res = await fetch('https://text.pollinations.ai/', {
             method: 'POST',
             signal: controller.signal,
