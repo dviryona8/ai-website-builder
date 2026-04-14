@@ -677,18 +677,15 @@ export default function App() {
       .replace(/  +/g, ' ')
       .trim()
 
-    // If still very large, truncate — keep head + first 6000 chars + closing tags
-    const MAX_HTML_CHARS = 8000
+    // Truncate to 4000 chars max to fit in small model context windows
+    const MAX_HTML_CHARS = 4000
     const htmlForPrompt = compressedHtml.length > MAX_HTML_CHARS
       ? compressedHtml.slice(0, MAX_HTML_CHARS) + '\n...[truncated]...\n</body></html>'
       : compressedHtml
 
-    const refinePrompt = `Modify the HTML website below based on the instruction. Return the COMPLETE improved HTML — ONLY raw HTML, no markdown, no explanation.
-
-INSTRUCTION: ${refinementInput}
-
-HTML:
-${htmlForPrompt}`
+    const refinePrompt = `You are editing an HTML website. Apply this change and return the COMPLETE updated HTML (raw HTML only, no markdown).
+CHANGE: ${refinementInput}
+HTML: ${htmlForPrompt}`
 
     const messages = [
       { role: 'system' as const, content: 'Elite front-end developer. Return only complete raw HTML with the requested changes applied. Never return empty.' },
