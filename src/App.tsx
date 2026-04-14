@@ -606,7 +606,25 @@ export default function App() {
       // 2. Try Pollinations.ai (completely free, no API key)
       if (!html) {
         try {
-          html = await tryOpenAI('https://text.pollinations.ai/openai', null, 'openai', 5000)
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 90000)
+          const res = await fetch('https://text.pollinations.ai/', {
+            method: 'POST',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'openai-large',
+              messages,
+              max_tokens: 5000,
+              seed: Math.floor(Math.random() * 99999),
+            }),
+          })
+          clearTimeout(timeoutId)
+          if (res.ok) {
+            const data = await res.json()
+            const content = data.choices?.[0]?.message?.content?.trim() ?? ''
+            if (content && content.length > 200) html = content
+          }
         } catch { /* fall through */ }
       }
 
