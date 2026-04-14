@@ -215,19 +215,17 @@ SECTIONS (each section MUST have the exact id shown):
 6. <section id="testimonials"> — 3 cards (★★★★★, quote, gradient avatar, first name only)
 7. <section id="cta-band"> — full-width primary gradient, bold headline, white button href="#contact"
 8. <section id="contact"> — 2col:
-  LEFT: contact form — use EXACTLY this HTML structure:
-  ${form.email ? `<form action="https://formsubmit.co/${form.email}" method="POST">
-    <input type="hidden" name="_subject" value="פנייה חדשה מהאתר - ${form.businessName}">
-    <input type="hidden" name="_captcha" value="false">
-    <input type="hidden" name="_template" value="table">
-    <input type="text" name="name" placeholder="${isHe ? 'שם מלא' : 'Full Name'}" required>
-    <input type="email" name="email" placeholder="${isHe ? 'אימייל' : 'Email'}" required>
-    <input type="tel" name="phone" placeholder="${isHe ? 'טלפון' : 'Phone'}">
-    <textarea name="message" placeholder="${isHe ? 'הודעה' : 'Message'}" required></textarea>
+  LEFT: contact form — use EXACTLY this HTML+JS structure:
+  <form id="contactForm">
+    <input type="text" id="cf-name" placeholder="${isHe ? 'שם מלא' : 'Full Name'}" required>
+    <input type="email" id="cf-email" placeholder="${isHe ? 'אימייל' : 'Email'}" required>
+    <input type="tel" id="cf-phone" placeholder="${isHe ? 'טלפון' : 'Phone'}">
+    <textarea id="cf-message" placeholder="${isHe ? 'הודעה' : 'Message'}" required></textarea>
     <button type="submit">${isHe ? 'שלח הודעה' : 'Send Message'}</button>
   </form>
-  Style all inputs with the design system. No JS needed for submission — FormSubmit handles it.`
-  : `<form id="contactForm"> with JS onsubmit: e.preventDefault(); show success message div`}
+  <div id="cf-success" style="display:none">${isHe ? '✅ ההודעה נשלחה בהצלחה!' : '✅ Message sent successfully!'}</div>
+  JS onsubmit: e.preventDefault(); collect fields; ${form.email ? `window.location.href = 'mailto:${form.email}?subject=${encodeURIComponent('פנייה חדשה מהאתר - ' + form.businessName)}&body='+encodeURIComponent('שם: '+name+'\\nאימייל: '+email+'\\nטלפון: '+phone+'\\nהודעה: '+message);` : ''} show #cf-success, hide form.
+  Style all inputs with the design system.
   RIGHT: contact info cards (phone as <a href="tel:${form.phone}">, email as <a href="mailto:${form.email}">, address) + hours table + map placeholder
 9. <footer id="footer"> — logo, nav links, FA social icons, copyright
 
