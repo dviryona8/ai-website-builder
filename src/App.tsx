@@ -127,6 +127,17 @@ function formatHoursForPrompt(hours: Record<string, DayHours>): string {
   }).join('\n')
 }
 
+function removeTestimonials(html: string): string {
+  // Remove any testimonials section the AI might have added
+  // Try removing <section id="testimonials">...</section>
+  html = html.replace(/<section[^>]*id=["']testimonials["'][^>]*>[\s\S]*?<\/section>/gi, '')
+  // Also remove any section that contains ★★★★★ or "testimonials" heading
+  html = html.replace(/<section[^>]*>[\s\S]*?★★★★★[\s\S]*?<\/section>/gi, '')
+  // Remove nav links to testimonials
+  html = html.replace(/<a[^>]*href=["']#testimonials["'][^>]*>[\s\S]*?<\/a>/gi, '')
+  return html
+}
+
 function fixContactForm(html: string, email: string, businessName: string): string {
   // Replace any FormSubmit form with a mailto-based JS form
   if (!html.includes('formsubmit.co')) return html
@@ -626,7 +637,8 @@ export default function App() {
         html = html.replaceAll(`__IMG_${i + 1}__`, src)
       })
 
-      // Fix contact form: replace any FormSubmit action with mailto JS handler
+      // Remove fake testimonials and fix contact form
+      html = removeTestimonials(html)
       html = fixContactForm(html, form.email, form.businessName)
 
       setGeneratedHtml(html)
@@ -744,7 +756,8 @@ ${htmlForPrompt}`
       if (form.logo) html = html.replaceAll('__LOGO__', form.logo)
       form.images.forEach((src, i) => { html = html.replaceAll(`__IMG_${i + 1}__`, src) })
 
-      // Fix contact form after refinement too
+      // Remove fake testimonials and fix contact form after refinement too
+      html = removeTestimonials(html)
       html = fixContactForm(html, form.email, form.businessName)
 
       setPreviousHtml(generatedHtml)
