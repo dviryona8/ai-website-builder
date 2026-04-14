@@ -700,7 +700,7 @@ export default function App() {
         try {
           const controller = new AbortController()
           const timeoutId = setTimeout(() => controller.abort(), 25000)
-          const res = await fetch('https://text.pollinations.ai/', {
+          const res = await fetch('https://text.pollinations.ai/openai', {
             method: 'POST', signal: controller.signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'openai-large', messages, max_tokens: 5000, seed: Math.floor(Math.random() * 99999) }),
