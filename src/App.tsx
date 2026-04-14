@@ -585,26 +585,20 @@ export default function App() {
         }
       }
 
-      // Fallback: OpenRouter — try multiple free models in sequence
+      // Fallback: OpenRouter — race all free models in parallel, take the first winner
       if (!html && openrouterKey) {
         const freeModels = [
           'meta-llama/llama-3.3-8b-instruct:free',
-          'meta-llama/llama-3.1-8b-instruct:free',
           'qwen/qwen-2.5-72b-instruct:free',
-          'deepseek/deepseek-r1:free',
+          'meta-llama/llama-3.1-8b-instruct:free',
           'mistralai/mistral-7b-instruct:free',
-          'google/gemma-3-27b-it:free',
-          'openrouter/free',
         ]
 
-        let lastError = ''
-        for (const model of freeModels) {
-          if (html) break
-          try {
+        const tryModel = (model: string): Promise<string> =>
+          new Promise((resolve, reject) => {
             const controller = new AbortController()
             const timeoutId = setTimeout(() => controller.abort(), 60000)
-
-            const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            fetch('https://openrouter.ai/api/v1/chat/completions', {
               method: 'POST',
               signal: controller.signal,
               headers: {
@@ -615,28 +609,22 @@ export default function App() {
               },
               body: JSON.stringify({ model, max_tokens: 5000, messages }),
             })
+              .then(async res => {
+                clearTimeout(timeoutId)
+                if (!res.ok) { reject(new Error(`${res.status}`)); return }
+                const data = await res.json()
+                const content = data.choices?.[0]?.message?.content?.trim() ?? ''
+                if (content && content.length > 200) resolve(content)
+                else reject(new Error('empty'))
+              })
+              .catch(err => { clearTimeout(timeoutId); reject(err) })
+          })
 
-            clearTimeout(timeoutId)
-
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}))
-              lastError = `${model} → ${res.status}: ${err?.error?.message || ''}`
-              continue
-            }
-
-            const data = await res.json()
-            const content = data.choices?.[0]?.message?.content?.trim() ?? ''
-            if (content && content.length > 200) {
-              html = content
-            } else {
-              lastError = `${model} → תגובה ריקה`
-            }
-          } catch {
-            lastError = `${model} → timeout`
-          }
+        try {
+          html = await Promise.any(freeModels.map(tryModel))
+        } catch {
+          throw new Error('כל המודלים החינמיים נכשלו — נסה שוב מאוחר יותר')
         }
-
-        if (!html) throw new Error(`כל המודלים נכשלו — ${lastError}`)
       }
 
       if (!html) throw new Error('כל ספקי ה-AI מוגבלים כרגע — נסה שוב מאוחר יותר')
