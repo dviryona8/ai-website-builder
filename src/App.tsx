@@ -671,25 +671,16 @@ export default function App() {
     setRefineLoading(true)
     setRefineError(null)
 
-    // Compress HTML: strip blank lines + excess whitespace to reduce tokens
-    const compressedHtml = generatedHtml
-      .replace(/\n\s*\n/g, '\n')
-      .replace(/  +/g, ' ')
-      .trim()
-
-    // Truncate to 4000 chars max to fit in small model context windows
-    const MAX_HTML_CHARS = 4000
-    const htmlForPrompt = compressedHtml.length > MAX_HTML_CHARS
-      ? compressedHtml.slice(0, MAX_HTML_CHARS) + '\n...[truncated]...\n</body></html>'
-      : compressedHtml
-
-    const refinePrompt = `You are editing an HTML website. Apply this change and return the COMPLETE updated HTML (raw HTML only, no markdown).
-CHANGE: ${refinementInput}
-HTML: ${htmlForPrompt}`
-
+    // Rebuild from scratch with the refinement instruction added — more reliable than editing HTML
     const messages = [
-      { role: 'system' as const, content: 'Elite front-end developer. Return only complete raw HTML with the requested changes applied. Never return empty.' },
-      { role: 'user' as const, content: refinePrompt },
+      {
+        role: 'system' as const,
+        content: 'You are an elite front-end developer. Output only raw HTML/CSS/JS — no markdown, no explanations.',
+      },
+      {
+        role: 'user' as const,
+        content: buildPrompt(form) + `\n\nADDITIONAL REQUIREMENT: ${refinementInput}`,
+      },
     ]
 
     try {
