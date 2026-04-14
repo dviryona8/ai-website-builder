@@ -436,24 +436,28 @@ function tryOpenAI(url: string, apiKey: string | null, model: string, maxTokens:
   })
 }
 
-function tryPollinations(messages: {role: string, content: string}[], maxTokens: number): Promise<string> {
+function tryPollinations(messages: {role: string, content: string}[], maxTokens: number, model = 'openai-large'): Promise<string> {
   return new Promise((resolve, reject) => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 58000)
+    const timeoutId = setTimeout(() => controller.abort(), 55000)
     fetch('https://text.pollinations.ai/openai', {
       method: 'POST', signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'openai-large', messages, max_tokens: maxTokens, seed: Math.floor(Math.random() * 99999) }),
+      body: JSON.stringify({ model, messages, max_tokens: maxTokens, stream: false, seed: Math.floor(Math.random() * 99999) }),
     })
       .then(async res => {
         clearTimeout(timeoutId)
-        if (!res.ok) { reject(new Error(`Pollinations ${res.status}`)); return }
-        const data = await res.json()
-        const content = data.choices?.[0]?.message?.content?.trim() ?? ''
-        if (content && content.length > 200) resolve(content)
-        else reject(new Error('Pollinations empty'))
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '')
+          reject(new Error(`Pollinations(${model}) ${res.status}: ${txt.slice(0, 80)}`))
+          return
+        }
+        const data = await res.json().catch(() => null)
+        const content = data?.choices?.[0]?.message?.content?.trim() ?? ''
+        if (content && content.length > 100) resolve(content)
+        else reject(new Error(`Pollinations(${model}) empty(${content.length})`))
       })
-      .catch(err => { clearTimeout(timeoutId); reject(err) })
+      .catch(err => { clearTimeout(timeoutId); reject(new Error(`Pollinations(${model}) fetch: ${err?.message}`)) })
   })
 }
 
@@ -619,26 +623,31 @@ export default function App() {
 
     try {
       let html = ''
+      const diagErrors: string[] = []
+      const track = (name: string, p: Promise<string>) =>
+        p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
 
-      // Wave 1: Race Groq-8b + 2x Pollinations + 3 OpenRouter simultaneously
+      // Wave 1: Race all providers simultaneously
       const wave1: Promise<string>[] = [
-        tryPollinations(messages, 5000),
-        tryPollinations(messages, 5000),
+        track('Poll-openai', tryPollinations(messages, 5000, 'openai')),
+        track('Poll-large', tryPollinations(messages, 5000, 'openai-large')),
+        track('Poll-mistral', tryPollinations(messages, 5000, 'mistral')),
       ]
-      if (groqKey) wave1.push(tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages))
+      if (groqKey) wave1.push(track('Groq-8b', tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages)))
       if (openrouterKey) {
-        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'openai/gpt-oss-120b:free'].forEach(m =>
-          wave1.push(tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages))
+        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free', 'mistralai/mistral-7b-instruct:free'].forEach(m =>
+          wave1.push(track(`OR-${m.split('/')[1]}`, tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
         )
       }
-      try { html = await Promise.any(wave1) } catch { /* wave 1 failed */ }
+      try { html = await Promise.any(wave1) } catch { /* wave 1 all failed */ }
 
-      // Wave 2: Fallback — Groq 70b if wave 1 failed
+      // Wave 2: Fallback — Groq 70b
       if (!html && groqKey) {
-        try { html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages) } catch { /* */ }
+        try { html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages) }
+        catch(e) { diagErrors.push(`Groq-70b: ${(e as Error)?.message}`) }
       }
 
-      if (!html) throw new Error('כל ספקי ה-AI עסוקים כרגע — נסה שוב עוד דקה')
+      if (!html) throw new Error(`כל ספקי ה-AI נכשלו: ${diagErrors.slice(0,4).join(' | ')}`)
 
       // Strip markdown code fences if present
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
@@ -713,26 +722,31 @@ START WITH <!DOCTYPE html>`
 
     try {
       let html = ''
+      const diagErrors: string[] = []
+      const track = (name: string, p: Promise<string>) =>
+        p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
 
-      // Wave 1: Race Groq-8b + 2x Pollinations + 3 OpenRouter simultaneously
+      // Wave 1: Race all providers simultaneously
       const wave1: Promise<string>[] = [
-        tryPollinations(messages, 5000),
-        tryPollinations(messages, 5000),
+        track('Poll-openai', tryPollinations(messages, 5000, 'openai')),
+        track('Poll-large', tryPollinations(messages, 5000, 'openai-large')),
+        track('Poll-mistral', tryPollinations(messages, 5000, 'mistral')),
       ]
-      if (groqKey) wave1.push(tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages))
+      if (groqKey) wave1.push(track('Groq-8b', tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages)))
       if (openrouterKey) {
-        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'openai/gpt-oss-120b:free'].forEach(m =>
-          wave1.push(tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages))
+        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free', 'mistralai/mistral-7b-instruct:free'].forEach(m =>
+          wave1.push(track(`OR-${m.split('/')[1]}`, tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
         )
       }
-      try { html = await Promise.any(wave1) } catch { /* wave 1 failed */ }
+      try { html = await Promise.any(wave1) } catch { /* wave 1 all failed */ }
 
       // Wave 2: Fallback — Groq 70b
       if (!html && groqKey) {
-        try { html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages) } catch { /* */ }
+        try { html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages) }
+        catch(e) { diagErrors.push(`Groq-70b: ${(e as Error)?.message}`) }
       }
 
-      if (!html) throw new Error('כל ספקי ה-AI עסוקים כרגע — נסה שוב עוד דקה')
+      if (!html) throw new Error(`כל ספקי ה-AI נכשלו: ${diagErrors.slice(0,4).join(' | ')}`)
 
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
 
