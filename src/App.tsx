@@ -570,22 +570,47 @@ export default function App() {
     try {
       let html = ''
 
-      // Try Groq first (faster, better quality)
-      if (groqKey) {
-        try {
-          const groq = new Groq({ apiKey: groqKey, dangerouslyAllowBrowser: true })
-          const completion = await groq.chat.completions.create({
-            model: 'llama-3.3-70b-versatile',
-            max_tokens: 4000,
-            messages,
+      // Helper: call OpenAI-compatible endpoint
+      const tryOpenAI = (url: string, apiKey: string | null, model: string, maxTokens: number): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const controller = new AbortController()
+          const timeoutId = setTimeout(() => controller.abort(), 90000)
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+          if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`
+            headers['HTTP-Referer'] = window.location.origin
+            headers['X-Title'] = 'AI Website Builder'
+          }
+          fetch(url, {
+            method: 'POST', signal: controller.signal, headers,
+            body: JSON.stringify({ model, max_tokens: maxTokens, messages }),
           })
-          html = completion.choices[0]?.message?.content?.trim() ?? ''
-        } catch {
-          // Any Groq error → fall through to OpenRouter
-        }
+            .then(async res => {
+              clearTimeout(timeoutId)
+              if (!res.ok) { const e = await res.json().catch(() => ({})); reject(new Error(`${res.status}: ${e?.error?.message || ''}`)); return }
+              const data = await res.json()
+              const content = data.choices?.[0]?.message?.content?.trim() ?? ''
+              if (content && content.length > 200) resolve(content)
+              else reject(new Error('empty response'))
+            })
+            .catch(err => { clearTimeout(timeoutId); reject(err) })
+        })
+
+      // 1. Try Groq
+      if (groqKey && !html) {
+        try {
+          html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000)
+        } catch { /* fall through */ }
       }
 
-      // Fallback: OpenRouter — race all free models in parallel, take the first winner
+      // 2. Try Pollinations.ai (completely free, no API key)
+      if (!html) {
+        try {
+          html = await tryOpenAI('https://text.pollinations.ai/openai', null, 'openai', 5000)
+        } catch { /* fall through */ }
+      }
+
+      // 3. Try OpenRouter free models in parallel
       if (!html && openrouterKey) {
         const freeModels = [
           'qwen/qwen3-coder:free',
@@ -594,41 +619,14 @@ export default function App() {
           'google/gemma-4-31b-it:free',
           'nousresearch/hermes-3-llama-3.1-405b:free',
         ]
-
-        const tryModel = (model: string): Promise<string> =>
-          new Promise((resolve, reject) => {
-            const controller = new AbortController()
-            const timeoutId = setTimeout(() => controller.abort(), 60000)
-            fetch('https://openrouter.ai/api/v1/chat/completions', {
-              method: 'POST',
-              signal: controller.signal,
-              headers: {
-                'Authorization': `Bearer ${openrouterKey}`,
-                'Content-Type': 'application/json',
-                'HTTP-Referer': window.location.origin,
-                'X-Title': 'AI Website Builder',
-              },
-              body: JSON.stringify({ model, max_tokens: 5000, messages }),
-            })
-              .then(async res => {
-                clearTimeout(timeoutId)
-                if (!res.ok) { reject(new Error(`${res.status}`)); return }
-                const data = await res.json()
-                const content = data.choices?.[0]?.message?.content?.trim() ?? ''
-                if (content && content.length > 200) resolve(content)
-                else reject(new Error('empty'))
-              })
-              .catch(err => { clearTimeout(timeoutId); reject(err) })
-          })
-
         try {
-          html = await Promise.any(freeModels.map(tryModel))
-        } catch {
-          throw new Error('כל המודלים החינמיים נכשלו — נסה שוב מאוחר יותר')
-        }
+          html = await Promise.any(freeModels.map(m =>
+            tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000)
+          ))
+        } catch { /* fall through */ }
       }
 
-      if (!html) throw new Error('כל ספקי ה-AI מוגבלים כרגע — נסה שוב מאוחר יותר')
+      if (!html) throw new Error('כל ספקי ה-AI מוגבלים כרגע — נסה שוב עוד כמה דקות')
 
       // Strip markdown code fences if present
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
