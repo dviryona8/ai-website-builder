@@ -686,16 +686,32 @@ export default function App() {
     try {
       let html = ''
       const errors: string[] = []
+      const wait = (ms: number) => new Promise(r => setTimeout(r, ms))
       const rcall = (url: string, key: string | null, model: string, tok: number) => tryOpenAI(url, key, model, tok, messages)
 
-      // 1. Groq fast model
+      // 1. Groq — try with auto-retry on rate limit
+      const tryGroq = async (model: string) => {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const result = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, model, 4000)
+            return result
+          } catch (e) {
+            const msg = e instanceof Error ? e.message : String(e)
+            if (msg.includes('429') || msg.includes('rate') || msg.includes('limit')) {
+              if (attempt < 2) await wait(15000) // wait 15s then retry
+              else throw e
+            } else throw e
+          }
+        }
+        return ''
+      }
+
       if (groqKey && !html) {
-        try { html = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 5000) }
+        try { html = await tryGroq('llama-3.1-8b-instant') }
         catch (e) { errors.push(`Groq-8b: ${e instanceof Error ? e.message : e}`) }
       }
-      // 2. Groq larger model
       if (groqKey && !html) {
-        try { html = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 5000) }
+        try { html = await tryGroq('llama-3.3-70b-versatile') }
         catch (e) { errors.push(`Groq-70b: ${e instanceof Error ? e.message : e}`) }
       }
       // 3. Pollinations.ai
