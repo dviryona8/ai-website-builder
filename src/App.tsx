@@ -385,7 +385,7 @@ function BusinessHoursEditor({
 function tryOpenAI(url: string, apiKey: string | null, model: string, maxTokens: number, messages: {role: string, content: string}[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 20000)
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (apiKey) {
       headers['Authorization'] = `Bearer ${apiKey}`
