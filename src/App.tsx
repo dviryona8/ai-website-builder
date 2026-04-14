@@ -685,15 +685,18 @@ export default function App() {
 
     try {
       let html = ''
+      const errors: string[] = []
       const rcall = (url: string, key: string | null, model: string, tok: number) => tryOpenAI(url, key, model, tok, messages)
 
       // 1. Groq fast model
       if (groqKey && !html) {
-        try { html = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 5000) } catch { /* */ }
+        try { html = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 5000) }
+        catch (e) { errors.push(`Groq-8b: ${e instanceof Error ? e.message : e}`) }
       }
       // 2. Groq larger model
       if (groqKey && !html) {
-        try { html = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 5000) } catch { /* */ }
+        try { html = await rcall('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 5000) }
+        catch (e) { errors.push(`Groq-70b: ${e instanceof Error ? e.message : e}`) }
       }
       // 3. Pollinations.ai
       if (!html) {
@@ -710,8 +713,11 @@ export default function App() {
             const data = await res.json()
             const c = data.choices?.[0]?.message?.content?.trim() ?? ''
             if (c && c.length > 200) html = c
+            else errors.push(`Pollinations: empty (${c.length} chars)`)
+          } else {
+            errors.push(`Pollinations: ${res.status}`)
           }
-        } catch { /* */ }
+        } catch (e) { errors.push(`Pollinations: ${e instanceof Error ? e.message : e}`) }
       }
       // 4. OpenRouter
       if (!html && openrouterKey) {
@@ -719,10 +725,10 @@ export default function App() {
           html = await Promise.any(['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'google/gemma-4-31b-it:free'].map(m =>
             rcall('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000)
           ))
-        } catch { /* */ }
+        } catch (e) { errors.push(`OpenRouter: ${e instanceof Error ? e.message : e}`) }
       }
 
-      if (!html) throw new Error('לא התקבלה תגובה — נסה שוב')
+      if (!html) throw new Error(`שגיאה: ${errors.join(' | ')}`)
 
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
 
