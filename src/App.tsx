@@ -19,6 +19,7 @@ interface BusinessForm {
   businessType: string
   description: string
   phone: string
+  email: string
   address: string
   primaryColor: string
   language: 'he' | 'en'
@@ -170,10 +171,21 @@ ${form.sources.map((s, i) => `--- Source ${i + 1}: ${s.name} ---\n${s.content}`)
   }
   const tone = toneMap[form.businessType] || toneMap.other
 
+  const phoneVal = form.phone || '050-0000000'
+  const emailVal = form.email || ''
+  const addressVal = form.address || ''
+  const waNum = phoneVal.replace(/\D/g, '')
+
   return `Build a premium dark-theme single-page website. Output ONLY raw HTML (no markdown).
 
+⚠️ MANDATORY REAL DATA — USE EXACTLY AS-IS, NO SUBSTITUTIONS:
+  PHONE: ${phoneVal}  ← display this exact number everywhere, <a href="tel:${phoneVal}">
+  EMAIL: ${emailVal || '(none)'}  ← display this exact email everywhere${emailVal ? `, <a href="mailto:${emailVal}">` : ', omit if none'}
+  ADDRESS: ${addressVal || '(none)'}  ← display this exact address, omit if none
+  WHATSAPP: https://wa.me/${waNum}  ← use this exact URL
+  BUSINESS NAME: ${form.businessName}  ← never translate or alter
+
 BUSINESS: ${form.businessName} | ${businessTypeLabel} | ${form.description || ''}
-CONTACT: ${form.phone || '050-0000000'} | ${form.address || ''}
 COLOR: ${c} | LANG: ${isHe ? 'Hebrew, dir="rtl" on <html>' : 'English LTR'} | TONE: ${tone}
 HOURS: ${hoursText.replace(/\n/g, ' | ')}
 ${sourcesSection}
@@ -202,18 +214,32 @@ SECTIONS (each section MUST have the exact id shown):
 5. <section id="${form.images.length > 0 ? 'gallery' : 'about'}"> — ${form.images.length > 0 ? 'css grid gallery, provided images, hover zoom overlay' : `split layout, gradient decoration, story, checkmark list`}
 6. <section id="testimonials"> — 3 cards (★★★★★, quote, gradient avatar, first name only)
 7. <section id="cta-band"> — full-width primary gradient, bold headline, white button href="#contact"
-8. <section id="contact"> — 2col: form (name/email/phone/message, focus glow, onsubmit show success msg) | info + hours table + map placeholder
+8. <section id="contact"> — 2col:
+  LEFT: contact form — use EXACTLY this HTML structure:
+  ${form.email ? `<form action="https://formsubmit.co/${form.email}" method="POST">
+    <input type="hidden" name="_subject" value="פנייה חדשה מהאתר - ${form.businessName}">
+    <input type="hidden" name="_captcha" value="false">
+    <input type="hidden" name="_template" value="table">
+    <input type="text" name="name" placeholder="${isHe ? 'שם מלא' : 'Full Name'}" required>
+    <input type="email" name="email" placeholder="${isHe ? 'אימייל' : 'Email'}" required>
+    <input type="tel" name="phone" placeholder="${isHe ? 'טלפון' : 'Phone'}">
+    <textarea name="message" placeholder="${isHe ? 'הודעה' : 'Message'}" required></textarea>
+    <button type="submit">${isHe ? 'שלח הודעה' : 'Send Message'}</button>
+  </form>
+  Style all inputs with the design system. No JS needed for submission — FormSubmit handles it.`
+  : `<form id="contactForm"> with JS onsubmit: e.preventDefault(); show success message div`}
+  RIGHT: contact info cards (phone as <a href="tel:${form.phone}">, email as <a href="mailto:${form.email}">, address) + hours table + map placeholder
 9. <footer id="footer"> — logo, nav links, FA social icons, copyright
 
-FLOATING: WhatsApp <a href="https://wa.me/${(form.phone || '0500000000').replace(/\D/g, '')}" target="_blank"> green circle, pulse animation; scroll-to-top btn (onclick window.scrollTo top)
+FLOATING: WhatsApp <a href="https://wa.me/${waNum}" target="_blank"> green circle, pulse animation; scroll-to-top btn (onclick window.scrollTo top)
 
-CRITICAL — DO NOT INVENT DATA:
-• Phone: display ONLY "${form.phone || 'לא סופק'}" — never write a different number
-• Address: display ONLY "${form.address || 'לא סופקה'}" — never invent a street/city
-• Business name: "${form.businessName}" — keep exactly as written, never translate
-• WhatsApp link: https://wa.me/${(form.phone || '0500000000').replace(/\D/g, '')} — use this exact number
-• Stats/numbers: make them generic and plausible — do NOT invent specific fake awards or certifications
-• Testimonials: clearly fictional (first names only, no fake last names or companies unless from sources)
+CRITICAL — FORBIDDEN TO INVENT CONTACT DATA:
+• PHONE in HTML must be EXACTLY: ${phoneVal} — hard-code this string, never a different number
+• EMAIL in HTML must be EXACTLY: ${emailVal || '(omit)'} — hard-code this string, never a different email
+• ADDRESS in HTML must be EXACTLY: ${addressVal || '(omit)'} — never invent a location
+• WhatsApp href must be EXACTLY: https://wa.me/${waNum}
+• Stats: plausible generic numbers only — no fake awards/certifications
+• Testimonials: first names only
 
 RULES: All CSS in <style>, JS in <script>. Google Fonts + FA6 CDN only. Responsive mobile-first. ${isHe ? `ALL text Hebrew — EXCEPT the business name "${form.businessName}" which must stay exactly as written.` : 'ALL text English.'} ${form.sources.length > 0 ? 'Use real content from sources — no generic placeholders.' : ''}
 
@@ -340,6 +366,7 @@ export default function App() {
     businessType: '',
     description: '',
     phone: '',
+    email: '',
     address: '',
     primaryColor: '#7c3aed',
     language: 'he',
@@ -363,16 +390,57 @@ export default function App() {
   const [urlInput, setUrlInput] = useState('')
   const [urlLoading, setUrlLoading] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
+  const [logoGenerating, setLogoGenerating] = useState(false)
+  const [logoGenError, setLogoGenError] = useState<string | null>(null)
 
   const groqKey = import.meta.env.VITE_GROQ_API_KEY
   const openrouterKey = import.meta.env.VITE_OPENROUTER_API_KEY
-  const apiKey = groqKey || openrouterKey
 
   const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     const base64 = await fileToBase64(file)
     setForm(f => ({ ...f, logo: base64 }))
+  }
+
+  const handleGenerateLogo = () => {
+    if (!form.businessName) return
+    setLogoGenerating(true)
+    setLogoGenError(null)
+
+    const businessTypeLabel = BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || ''
+    const hex = form.primaryColor.replace('#', '')
+    const prompt = [
+      `minimalist professional logo icon for a business called "${form.businessName}"`,
+      businessTypeLabel,
+      `primary color ${hex}`,
+      'flat vector style',
+      'white background',
+      'no text no letters',
+      'simple geometric icon',
+      'high quality',
+    ].filter(Boolean).join(', ')
+
+    const seed = Math.floor(Math.random() * 999999)
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=512&height=512&nologo=true&seed=${seed}`
+
+    // Fetch via CORS proxy to get blob → base64
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+    fetch(proxyUrl)
+      .then(res => {
+        if (!res.ok) throw new Error(`${res.status}`)
+        return res.blob()
+      })
+      .then(blob => fileToBase64(new File([blob], 'logo.png', { type: 'image/png' })))
+      .then(base64 => {
+        setForm(f => ({ ...f, logo: base64 }))
+        setLogoGenerating(false)
+      })
+      .catch(() => {
+        // Proxy failed — use URL directly (works for preview, not embedded in HTML)
+        setForm(f => ({ ...f, logo: url }))
+        setLogoGenerating(false)
+      })
   }
 
   const handleImagesChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -554,31 +622,46 @@ export default function App() {
     setRefineLoading(true)
     setRefineError(null)
 
-    const refinePrompt = `You are given an HTML website. Apply the following improvement and return the COMPLETE improved HTML file — nothing else, no explanations, no markdown.
+    // Compress HTML: strip blank lines + excess whitespace to reduce tokens
+    const compressedHtml = generatedHtml
+      .replace(/\n\s*\n/g, '\n')
+      .replace(/  +/g, ' ')
+      .trim()
 
-IMPROVEMENT REQUEST: ${refinementInput}
+    // If still very large, truncate — keep head + first 6000 chars + closing tags
+    const MAX_HTML_CHARS = 8000
+    const htmlForPrompt = compressedHtml.length > MAX_HTML_CHARS
+      ? compressedHtml.slice(0, MAX_HTML_CHARS) + '\n...[truncated]...\n</body></html>'
+      : compressedHtml
 
-CURRENT HTML:
-${generatedHtml}`
+    const refinePrompt = `Modify the HTML website below based on the instruction. Return the COMPLETE improved HTML — ONLY raw HTML, no markdown, no explanation.
+
+INSTRUCTION: ${refinementInput}
+
+HTML:
+${htmlForPrompt}`
 
     const messages = [
-      { role: 'system' as const, content: 'You are an elite front-end developer. Apply the requested changes to the HTML and return only the full improved HTML file.' },
+      { role: 'system' as const, content: 'Elite front-end developer. Return only complete raw HTML with the requested changes applied. Never return empty.' },
       { role: 'user' as const, content: refinePrompt },
     ]
 
     try {
       let html = ''
+      let lastError = ''
 
       if (groqKey) {
         try {
           const groq = new Groq({ apiKey: groqKey, dangerouslyAllowBrowser: true })
           const completion = await groq.chat.completions.create({
             model: 'llama-3.3-70b-versatile',
-            max_tokens: 4000,
+            max_tokens: 5000,
             messages,
           })
           html = completion.choices[0]?.message?.content?.trim() ?? ''
-        } catch { /* fall through */ }
+        } catch (e) {
+          lastError = e instanceof Error ? e.message : 'Groq error'
+        }
       }
 
       if (!html && openrouterKey) {
@@ -596,7 +679,7 @@ ${generatedHtml}`
           body: JSON.stringify({
             models: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'minimax/minimax-m2.5:free'],
             route: 'fallback',
-            max_tokens: 4000,
+            max_tokens: 5000,
             messages,
           }),
         })
@@ -604,10 +687,14 @@ ${generatedHtml}`
         if (res.ok) {
           const data = await res.json()
           html = data.choices?.[0]?.message?.content?.trim() ?? ''
+          if (!html) lastError = `המודל (${data.model || '?'}) החזיר תגובה ריקה`
+        } else {
+          const err = await res.json().catch(() => ({}))
+          lastError = `OpenRouter ${res.status}: ${err?.error?.message || ''}`
         }
       }
 
-      if (!html) throw new Error('לא התקבלה תגובה — נסה שוב')
+      if (!html) throw new Error(lastError || 'לא התקבלה תגובה — נסה שוב')
 
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
 
@@ -739,15 +826,26 @@ ${generatedHtml}`
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">כתובת</label>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">אימייל העסק</label>
                   <input
-                    type="text"
-                    placeholder="רחוב, עיר"
-                    value={form.address}
-                    onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                    type="email"
+                    placeholder="business@email.com"
+                    value={form.email}
+                    onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
                     className="field-input w-full rounded-xl px-4 py-3 text-sm"
+                    dir="ltr"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">כתובת</label>
+                <input
+                  type="text"
+                  placeholder="רחוב, עיר"
+                  value={form.address}
+                  onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                  className="field-input w-full rounded-xl px-4 py-3 text-sm"
+                />
               </div>
 
               {/* Logo Upload */}
@@ -764,18 +862,34 @@ ${generatedHtml}`
                 />
                 {form.logo ? (
                   <div className="flex items-center gap-4">
-                    <img
-                      src={form.logo}
-                      alt="לוגו"
-                      className="w-16 h-16 object-contain rounded-xl glass border border-white/10"
-                    />
+                    <div className="relative">
+                      <img
+                        src={form.logo}
+                        alt="לוגו"
+                        className="w-20 h-20 object-contain rounded-xl glass border border-white/10 bg-white/5"
+                      />
+                      {logoGenerating && (
+                        <div className="absolute inset-0 rounded-xl bg-black/60 flex items-center justify-center">
+                          <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full spin" />
+                        </div>
+                      )}
+                    </div>
                     <div className="flex flex-col gap-2">
+                      <button
+                        type="button"
+                        onClick={handleGenerateLogo}
+                        disabled={logoGenerating || !form.businessName}
+                        className="btn-primary px-3 py-1.5 rounded-lg text-xs text-white font-medium flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {logoGenerating ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full spin" /> : '✦'}
+                        צור מחדש
+                      </button>
                       <button
                         type="button"
                         onClick={() => logoInputRef.current?.click()}
                         className="glass px-3 py-1.5 rounded-lg text-xs text-slate-300 hover:text-white transition-colors border border-white/10"
                       >
-                        החלף לוגו
+                        העלה קובץ
                       </button>
                       <button
                         type="button"
@@ -787,15 +901,42 @@ ${generatedHtml}`
                     </div>
                   </div>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={() => logoInputRef.current?.click()}
-                    className="w-full glass border border-dashed border-white/20 rounded-xl py-6 flex flex-col items-center gap-2 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all cursor-pointer"
-                  >
-                    <span className="text-2xl">🖼️</span>
-                    <span className="text-sm text-slate-400">לחץ להעלאת לוגו</span>
-                    <span className="text-xs text-slate-600">PNG, JPG, SVG — עד 5MB</span>
-                  </button>
+                  <div className="space-y-2">
+                    {/* AI Generate */}
+                    <button
+                      type="button"
+                      onClick={handleGenerateLogo}
+                      disabled={logoGenerating || !form.businessName}
+                      className="w-full btn-primary rounded-xl py-4 flex items-center justify-center gap-3 disabled:opacity-50 transition-all"
+                    >
+                      {logoGenerating ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full spin" />
+                          <span className="text-sm text-white font-medium">יוצר לוגו עם AI...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="text-xl">✦</span>
+                          <span className="text-sm text-white font-medium">צור לוגו עם AI</span>
+                        </>
+                      )}
+                    </button>
+                    {/* Manual upload */}
+                    <button
+                      type="button"
+                      onClick={() => logoInputRef.current?.click()}
+                      className="w-full glass border border-dashed border-white/20 rounded-xl py-3 flex items-center justify-center gap-2 hover:border-purple-500/50 hover:bg-purple-500/5 transition-all cursor-pointer"
+                    >
+                      <span>🖼️</span>
+                      <span className="text-sm text-slate-400">או העלה קובץ קיים</span>
+                    </button>
+                    {!form.businessName && (
+                      <p className="text-xs text-slate-600 text-center">הכנס שם עסק כדי לייצר לוגו</p>
+                    )}
+                  </div>
+                )}
+                {logoGenError && (
+                  <p className="text-xs text-red-400 mt-2">⚠️ {logoGenError}</p>
                 )}
               </div>
 
