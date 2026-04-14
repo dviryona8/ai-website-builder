@@ -600,12 +600,7 @@ export default function App() {
             'X-Title': 'AI Website Builder',
           },
           body: JSON.stringify({
-            models: [
-              'google/gemma-4-31b-it:free',
-              'google/gemma-4-26b-a4b-it:free',
-              'minimax/minimax-m2.5:free',
-            ],
-            route: 'fallback',
+            model: 'openrouter/free',
             max_tokens: 5000,
             messages,
           }),
@@ -731,8 +726,7 @@ ${htmlForPrompt}`
             'X-Title': 'AI Website Builder',
           },
           body: JSON.stringify({
-            models: ['google/gemma-4-31b-it:free', 'google/gemma-4-26b-a4b-it:free', 'minimax/minimax-m2.5:free'],
-            route: 'fallback',
+            model: 'openrouter/free',
             max_tokens: 5000,
             messages,
           }),
