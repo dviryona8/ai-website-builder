@@ -686,8 +686,10 @@ Return this exact JSON structure with real content:
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Legacy HTML-generation code (unused — template architecture replaced it)
+// Kept here only to avoid merge conflicts; TypeScript will tree-shake it.
 
-function buildPrompt(form: BusinessForm): string {
+function _LEGACY_buildPrompt(form: BusinessForm): string {
   const businessTypeLabel = BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || form.businessType
   const isHe = form.language === 'he'
   const hoursText = formatHoursForPrompt(form.businessHours)
