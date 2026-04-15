@@ -225,6 +225,348 @@ function injectBusinessData(html: string, phone: string, email: string, address:
   return html
 }
 
+// ─── Template-based generation ───────────────────────────────────────────────
+
+interface SiteContent {
+  heroTitle: string
+  heroSub: string
+  services: { title: string; desc: string; icon: string }[]
+  aboutText: string
+  ctaTitle: string
+}
+
+function getDefaultContent(form: BusinessForm): SiteContent {
+  const isHe = form.language === 'he'
+  const n = form.businessName
+  const desc = form.description || ''
+  return {
+    heroTitle: isHe ? `${n} — הפתרון המקצועי שחיפשת` : `${n} — Professional Solutions`,
+    heroSub: desc.slice(0, 180) || (isHe ? 'ברוכים הבאים לעסק שלנו' : 'Welcome to our business'),
+    services: [
+      { title: isHe ? 'שירות מקצועי' : 'Professional Service', desc: isHe ? 'אנחנו מספקים שירות מקצועי ואיכותי ללקוחותינו.' : 'We provide high-quality professional service.', icon: 'fa-star' },
+      { title: isHe ? 'ניסיון רב' : 'Extensive Experience', desc: isHe ? 'שנים של ניסיון בתחום.' : 'Years of industry expertise.', icon: 'fa-trophy' },
+      { title: isHe ? 'שירות אישי' : 'Personal Attention', desc: isHe ? 'טיפול אישי לכל לקוח.' : 'Personal attention to every client.', icon: 'fa-user-check' },
+      { title: isHe ? 'זמינות מלאה' : 'Full Availability', desc: isHe ? 'זמינים עבורך לכל שאלה.' : 'Available for any question.', icon: 'fa-clock' },
+      { title: isHe ? 'מחירים הוגנים' : 'Fair Pricing', desc: isHe ? 'תמחור שקוף והוגן.' : 'Transparent and fair pricing.', icon: 'fa-tag' },
+      { title: isHe ? 'תוצאות מוכחות' : 'Proven Results', desc: isHe ? 'לקוחות מרוצים ברחבי הארץ.' : 'Satisfied clients nationwide.', icon: 'fa-chart-line' },
+    ],
+    aboutText: desc || (isHe ? `אנחנו ${n}.\nאנחנו מחויבים לספק את השירות הטוב ביותר.` : `We are ${n}.\nWe are committed to the highest service.`),
+    ctaTitle: isHe ? 'מוכנים להתחיל?' : 'Ready to Get Started?',
+  }
+}
+
+function buildHtmlFromTemplate(form: BusinessForm, content: SiteContent): string {
+  const { heroTitle, heroSub, services, aboutText, ctaTitle } = content
+  const c = form.primaryColor
+  const isHe = form.language === 'he'
+  const dir = isHe ? 'rtl' : 'ltr'
+  const font = isHe ? 'Heebo' : 'Inter'
+  const phone = form.phone?.trim() || ''
+  const email = form.email?.trim() || ''
+  const address = form.address?.trim() || ''
+  const waNum = phone.replace(/\D/g, '')
+  const bName = form.businessName
+
+  const hoursRows = DAYS.map(({ key, label }) => {
+    const h = form.businessHours[key]
+    return h.closed
+      ? `<tr><td>${label}</td><td style="color:var(--muted)">${isHe ? 'סגור' : 'Closed'}</td></tr>`
+      : `<tr><td>${label}</td><td>${h.open}–${h.close}</td></tr>`
+  }).join('')
+
+  const logoHtml = form.logo
+    ? `<img src="${form.logo}" alt="${bName}" style="height:40px;object-fit:contain;">`
+    : `<span style="font-size:1.3rem;font-weight:900;background:linear-gradient(135deg,${c},${c}aa);-webkit-background-clip:text;-webkit-text-fill-color:transparent">${bName}</span>`
+
+  const svcIcons = ['fa-star','fa-bolt','fa-shield-halved','fa-rocket','fa-gem','fa-chart-line']
+  const servicesHtml = services.slice(0, 6).map((s, i) => `
+    <div class="svc-card">
+      <div class="svc-icon"><i class="fas ${s.icon || svcIcons[i]}"></i></div>
+      <h3>${s.title}</h3>
+      <p>${s.desc}</p>
+    </div>`).join('')
+
+  const galleryHtml = form.images.length > 0 ? `
+  <section id="gallery" style="padding:5rem 2rem;background:var(--surface)">
+    <div class="sec-hdr"><div class="sec-lbl">${isHe ? 'גלריה' : 'Gallery'}</div><h2 class="sec-ttl">${isHe ? 'התמונות שלנו' : 'Our Work'}</h2></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;max-width:1100px;margin:0 auto">
+      ${form.images.map((src, i) => `<img src="${src}" alt="${isHe ? 'תמונה' : 'image'} ${i+1}" style="width:100%;height:200px;object-fit:cover;border-radius:12px;border:1px solid var(--border)">`).join('')}
+    </div>
+  </section>` : ''
+
+  const aboutParas = aboutText.split(/\n+/).filter(Boolean).map(p => `<p>${p}</p>`).join('')
+
+  const y = new Date().getFullYear()
+
+  return `<!DOCTYPE html>
+<html lang="${isHe ? 'he' : 'en'}" dir="${dir}">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${bName}</title>
+<link href="https://fonts.googleapis.com/css2?family=${font}:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<style>
+:root{--p:${c};--bg:#080810;--surf:#0f0f1a;--card:rgba(255,255,255,.04);--bdr:rgba(255,255,255,.08);--txt:#f2f2f8;--muted:#8888aa}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:'${font}',sans-serif;background:var(--bg);color:var(--txt);direction:${dir};line-height:1.6}
+a{text-decoration:none;color:inherit}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;width:100%;z-index:100;padding:.9rem 2rem;display:flex;align-items:center;justify-content:space-between;background:rgba(8,8,16,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--bdr);transition:background .3s}
+.nav-links{display:flex;gap:1.8rem;list-style:none}
+.nav-links a{color:var(--muted);font-size:.9rem;font-weight:600;transition:color .2s}
+.nav-links a:hover{color:var(--p)}
+.nav-btn{background:var(--p);color:#fff;padding:.55rem 1.3rem;border-radius:8px;font-weight:700;font-size:.9rem;transition:opacity .2s}
+.nav-btn:hover{opacity:.85}
+.ham{display:none;flex-direction:column;gap:5px;background:none;border:none;cursor:pointer}
+.ham span{width:24px;height:2px;background:var(--txt);border-radius:2px;display:block}
+
+/* ── HERO ── */
+#hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:8rem 2rem 4rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at 20% 50%,color-mix(in srgb,var(--p) 12%,transparent) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,color-mix(in srgb,var(--p) 8%,transparent) 0%,transparent 50%),var(--bg)}
+.blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.12}
+.blob1{width:500px;height:500px;background:var(--p);top:-80px;${isHe?'right':'left'}:-80px;animation:flt 7s ease-in-out infinite}
+.blob2{width:350px;height:350px;background:var(--p);bottom:-60px;${isHe?'left':'right'}:-40px;animation:flt 9s ease-in-out infinite reverse}
+@keyframes flt{0%,100%{transform:translateY(0)}50%{transform:translateY(-24px)}}
+.hero-inner{position:relative;z-index:1;max-width:820px}
+.hero-badge{display:inline-block;background:color-mix(in srgb,var(--p) 18%,transparent);color:var(--p);border:1px solid color-mix(in srgb,var(--p) 35%,transparent);padding:.35rem 1.1rem;border-radius:100px;font-size:.82rem;font-weight:700;margin-bottom:1.4rem;letter-spacing:.5px}
+.hero-title{font-size:clamp(2.2rem,5.5vw,4.2rem);font-weight:900;line-height:1.1;margin-bottom:1.2rem}
+.hero-title .hl{color:var(--p)}
+.hero-sub{font-size:1.1rem;color:var(--muted);line-height:1.75;max-width:580px;margin:0 auto 2.2rem}
+.hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
+.btn-p{background:var(--p);color:#fff;padding:.85rem 1.8rem;border-radius:10px;font-weight:700;font-size:.95rem;display:inline-flex;align-items:center;gap:.5rem;transition:all .2s}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 10px 28px color-mix(in srgb,var(--p) 38%,transparent)}
+.btn-o{border:1px solid var(--bdr);color:var(--txt);padding:.85rem 1.8rem;border-radius:10px;font-weight:600;font-size:.95rem;transition:all .2s}
+.btn-o:hover{border-color:var(--p);color:var(--p)}
+
+/* ── SERVICES ── */
+#services{padding:5.5rem 2rem}
+.sec-hdr{text-align:center;margin-bottom:3rem}
+.sec-lbl{color:var(--p);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:.6rem}
+.sec-ttl{font-size:clamp(1.7rem,4vw,2.6rem);font-weight:800}
+.svc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1.4rem;max-width:1100px;margin:0 auto}
+.svc-card{background:var(--card);border:1px solid var(--bdr);border-radius:16px;padding:1.8rem;transition:all .3s}
+.svc-card:hover{border-color:var(--p);transform:translateY(-4px);box-shadow:0 14px 40px color-mix(in srgb,var(--p) 15%,transparent)}
+.svc-icon{width:48px;height:48px;background:color-mix(in srgb,var(--p) 14%,transparent);border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--p);font-size:1.2rem;margin-bottom:1.1rem}
+.svc-card h3{font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
+.svc-card p{color:var(--muted);font-size:.88rem;line-height:1.65}
+
+/* ── ABOUT ── */
+#about{padding:5.5rem 2rem;background:var(--surf)}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:3.5rem;max-width:1100px;margin:0 auto;align-items:center}
+.about-txt h2{font-size:clamp(1.6rem,3vw,2.3rem);font-weight:800;margin-bottom:1.3rem}
+.about-txt p{color:var(--muted);line-height:1.85;margin-bottom:.9rem}
+.about-vis{background:linear-gradient(135deg,color-mix(in srgb,var(--p) 18%,transparent),color-mix(in srgb,var(--p) 5%,transparent));border:1px solid var(--bdr);border-radius:20px;padding:3rem;text-align:center;font-size:4.5rem;color:var(--p);opacity:.75}
+
+/* ── CTA BAND ── */
+#cta{padding:5rem 2rem;text-align:center;background:linear-gradient(135deg,color-mix(in srgb,var(--p) 14%,var(--bg)),var(--bg))}
+#cta h2{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:900;margin-bottom:.8rem}
+#cta p{color:var(--muted);font-size:1.05rem;margin-bottom:1.8rem}
+
+/* ── CONTACT ── */
+#contact{padding:5.5rem 2rem}
+.contact-grid{display:grid;grid-template-columns:1fr 1fr;gap:3.5rem;max-width:1100px;margin:0 auto}
+.contact-grid h2{font-size:1.7rem;font-weight:800;margin-bottom:1.4rem}
+.fg{margin-bottom:.85rem}
+.fg input,.fg textarea{width:100%;background:var(--card);border:1px solid var(--bdr);border-radius:9px;padding:.85rem 1rem;color:var(--txt);font-family:inherit;font-size:.9rem;outline:none;transition:border-color .2s;direction:${dir}}
+.fg input:focus,.fg textarea:focus{border-color:var(--p)}
+.fg textarea{height:110px;resize:vertical}
+.form-btn{width:100%;background:var(--p);color:#fff;border:none;padding:.95rem;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .2s}
+.form-btn:hover{opacity:.85}
+.ci-item{display:flex;align-items:center;gap:.9rem;margin-bottom:1.1rem;color:var(--muted)}
+.ci-ico{width:38px;height:38px;background:color-mix(in srgb,var(--p) 14%,transparent);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--p);flex-shrink:0}
+.ci-item a:hover{color:var(--p)}
+.hrs-tbl{width:100%;border-collapse:collapse;font-size:.84rem;margin-top:.8rem}
+.hrs-tbl td{padding:.35rem 0;color:var(--muted)}
+.hrs-tbl td:last-child{text-align:${isHe?'left':'right'}}
+
+/* ── FOOTER ── */
+footer{background:var(--surf);border-top:1px solid var(--bdr);padding:1.8rem;text-align:center;color:var(--muted);font-size:.83rem}
+
+/* ── FLOATING ── */
+.fw{position:fixed;bottom:5.5rem;${isHe?'left':'right'}:1.4rem;z-index:200;width:54px;height:54px;background:#25d366;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;box-shadow:0 4px 18px rgba(37,211,102,.4);transition:transform .2s}
+.fw:hover{transform:scale(1.1)}
+.st{position:fixed;bottom:1.4rem;${isHe?'left':'right'}:1.4rem;z-index:200;width:44px;height:44px;background:var(--surf);border:1px solid var(--bdr);border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;opacity:0;transition:opacity .3s;color:var(--txt)}
+.st.vis{opacity:1}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .nav-links{display:none;flex-direction:column;position:absolute;top:100%;${isHe?'right':'left'}:0;width:100%;background:var(--surf);padding:1rem 2rem;border-bottom:1px solid var(--bdr);gap:.8rem}
+  .nav-links.open{display:flex}
+  .ham{display:flex}
+  .about-grid,.contact-grid{grid-template-columns:1fr;gap:2rem}
+  .about-vis{display:none}
+}
+</style>
+</head>
+<body>
+
+<nav id="nb">
+  <a href="#">${logoHtml}</a>
+  <ul class="nav-links" id="nl">
+    <li><a href="#services">${isHe?'שירותים':'Services'}</a></li>
+    <li><a href="#about">${isHe?'אודות':'About'}</a></li>
+    ${galleryHtml ? `<li><a href="#gallery">${isHe?'גלריה':'Gallery'}</a></li>` : ''}
+    <li><a href="#contact">${isHe?'צור קשר':'Contact'}</a></li>
+  </ul>
+  <a href="#contact" class="nav-btn">${isHe?'צור קשר':'Contact Us'}</a>
+  <button class="ham" onclick="document.getElementById('nl').classList.toggle('open')" aria-label="menu">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<section id="hero">
+  <div class="blob blob1"></div>
+  <div class="blob blob2"></div>
+  <div class="hero-inner">
+    <div class="hero-badge">${bName}</div>
+    <h1 class="hero-title">${heroTitle}</h1>
+    <p class="hero-sub">${heroSub}</p>
+    <div class="hero-btns">
+      <a href="#contact" class="btn-p"><i class="fas fa-comment-dots"></i> ${isHe?'דברו איתנו':'Get In Touch'}</a>
+      ${phone ? `<a href="tel:${phone}" class="btn-o"><i class="fas fa-phone"></i> ${phone}</a>` : ''}
+    </div>
+  </div>
+</section>
+
+<section id="services">
+  <div class="sec-hdr">
+    <div class="sec-lbl">${isHe?'מה אנחנו מציעים':'What We Offer'}</div>
+    <h2 class="sec-ttl">${isHe?'השירותים שלנו':'Our Services'}</h2>
+  </div>
+  <div class="svc-grid">${servicesHtml}</div>
+</section>
+
+${galleryHtml}
+
+<section id="about">
+  <div class="about-grid">
+    <div class="about-txt">
+      <div class="sec-lbl">${isHe?'הסיפור שלנו':'Our Story'}</div>
+      <h2>${isHe?'אודות ':'About '}${bName}</h2>
+      ${aboutParas}
+    </div>
+    <div class="about-vis"><i class="fas fa-star"></i></div>
+  </div>
+</section>
+
+<section id="cta">
+  <h2>${ctaTitle}</h2>
+  <p>${isHe?'אנחנו כאן בשבילך — בואו נדבר':'We are here for you — let\'s talk'}</p>
+  <a href="#contact" class="btn-p" style="display:inline-flex">${isHe?'צור קשר עכשיו':'Contact Us Now'} <i class="fas fa-arrow-${isHe?'left':'right'}"></i></a>
+</section>
+
+<section id="contact">
+  <div class="contact-grid">
+    <div>
+      <h2>${isHe?'שלחו הודעה':'Send a Message'}</h2>
+      <form id="cf">
+        <div class="fg"><input type="text" id="cn" placeholder="${isHe?'שם מלא':'Full Name'}" required></div>
+        <div class="fg"><input type="email" id="ce" placeholder="${isHe?'אימייל':'Email'}" required></div>
+        <div class="fg"><input type="tel" id="cp" placeholder="${isHe?'טלפון':'Phone'}"></div>
+        <div class="fg"><textarea id="cm" placeholder="${isHe?'ההודעה שלך':'Your Message'}" required></textarea></div>
+        <button type="submit" class="form-btn">${isHe?'שלח הודעה ✉️':'Send Message ✉️'}</button>
+      </form>
+      <div id="fs" style="display:none;color:#4ade80;text-align:center;padding:2rem;font-size:1.1rem">✅ ${isHe?'הודעתך נשלחה בהצלחה!':'Message sent successfully!'}</div>
+    </div>
+    <div>
+      <h2>${isHe?'פרטי התקשרות':'Contact Info'}</h2>
+      ${phone ? `<div class="ci-item"><div class="ci-ico"><i class="fas fa-phone"></i></div><a href="tel:${phone}">${phone}</a></div>` : ''}
+      ${email ? `<div class="ci-item"><div class="ci-ico"><i class="fas fa-envelope"></i></div><a href="mailto:${email}">${email}</a></div>` : ''}
+      ${address ? `<div class="ci-item"><div class="ci-ico"><i class="fas fa-location-dot"></i></div><span>${address}</span></div>` : ''}
+      ${waNum ? `<div class="ci-item"><div class="ci-ico"><i class="fab fa-whatsapp"></i></div><a href="https://wa.me/${waNum}" target="_blank">${isHe?'שלח הודעה בוואטסאפ':'WhatsApp Us'}</a></div>` : ''}
+      <h3 style="margin:1.4rem 0 .4rem;font-size:.95rem">${isHe?'שעות פעילות':'Business Hours'}</h3>
+      <table class="hrs-tbl"><tbody>${hoursRows}</tbody></table>
+    </div>
+  </div>
+</section>
+
+<footer><p>© ${y} ${bName}. ${isHe?'כל הזכויות שמורות':'All rights reserved'}.</p></footer>
+
+${waNum ? `<a href="https://wa.me/${waNum}" class="fw" target="_blank" aria-label="WhatsApp"><i class="fab fa-whatsapp"></i></a>` : ''}
+<button class="st" id="st" onclick="window.scrollTo({top:0,behavior:'smooth'})" aria-label="scroll to top"><i class="fas fa-arrow-up"></i></button>
+
+<script>
+window.addEventListener('scroll',function(){
+  var nb=document.getElementById('nb'),st=document.getElementById('st');
+  nb.style.background=window.scrollY>50?'rgba(8,8,16,.96)':'rgba(8,8,16,.85)';
+  if(st){st.classList.toggle('vis',window.scrollY>300);}
+});
+document.getElementById('cf').addEventListener('submit',function(e){
+  e.preventDefault();
+  var n=document.getElementById('cn').value,em=document.getElementById('ce').value,p=document.getElementById('cp').value,m=document.getElementById('cm').value;
+  ${email ? `window.location.href='mailto:${email}?subject='+encodeURIComponent('${isHe?'פנייה חדשה':'New inquiry'} - ${bName}')+'&body='+encodeURIComponent('${isHe?'שם':'Name'}: '+n+'\\n${isHe?'אימייל':'Email'}: '+em+'\\n${isHe?'טלפון':'Phone'}: '+p+'\\n${isHe?'הודעה':'Message'}: '+m);` : ''}
+  this.style.display='none';document.getElementById('fs').style.display='block';
+});
+</script>
+</body></html>`
+}
+
+async function generateSiteContent(
+  form: BusinessForm,
+  groqKey: string,
+  openrouterKey: string
+): Promise<SiteContent> {
+  const isHe = form.language === 'he'
+  const typeLabel = BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || form.businessType
+  const sourcesText = form.sources.length > 0
+    ? `\nBusiness content provided by user:\n${form.sources.map(s => s.content).join('\n').slice(0, 1500)}`
+    : ''
+
+  const prompt = `Generate website content as JSON for this business.
+Name: "${form.businessName}"
+Type: ${typeLabel}
+Description: ${form.description || 'Professional business'}
+Language: ${isHe ? 'Hebrew (all text in Hebrew)' : 'English'}${sourcesText}
+
+Return ONLY this JSON (no markdown, no explanation):
+{"heroTitle":"5-8 word headline","heroSub":"1-2 sentence value proposition","services":[{"title":"...","desc":"2-3 sentences","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"}],"aboutText":"2 paragraphs\\nusing the description","ctaTitle":"action headline"}
+
+Use real Font Awesome 6 icon names (fa-code, fa-users, fa-shield, fa-rocket, fa-star, fa-wrench, fa-heart, fa-leaf etc.).
+Base content on the description. Do not invent statistics.`
+
+  const msgs = [
+    { role: 'system' as const, content: 'You generate website content JSON. Return only valid JSON, nothing else.' },
+    { role: 'user' as const, content: prompt },
+  ]
+
+  const tryJson = async (url: string, key: string | null, model: string): Promise<SiteContent> => {
+    const ctrl = new AbortController()
+    const tid = setTimeout(() => ctrl.abort(), 25000)
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (key) { headers['Authorization'] = `Bearer ${key}`; headers['HTTP-Referer'] = window.location.origin }
+    try {
+      const res = await fetch(url, { method: 'POST', signal: ctrl.signal, headers, body: JSON.stringify({ model, max_tokens: 1200, messages: msgs }) })
+      clearTimeout(tid)
+      if (!res.ok) throw new Error(`${res.status}`)
+      const data = await res.json()
+      const text = data.choices?.[0]?.message?.content?.trim() ?? ''
+      const match = text.match(/\{[\s\S]*\}/)
+      if (!match) throw new Error('no JSON')
+      const parsed = JSON.parse(match[0]) as SiteContent
+      if (!parsed.heroTitle || !Array.isArray(parsed.services)) throw new Error('invalid structure')
+      return parsed
+    } catch (e) { clearTimeout(tid); throw e }
+  }
+
+  const GROQ = 'https://api.groq.com/openai/v1/chat/completions'
+  const OR = 'https://openrouter.ai/api/v1/chat/completions'
+
+  try {
+    return await Promise.any([
+      tryJson(GROQ, groqKey, 'llama-3.1-8b-instant'),
+      tryJson(GROQ, groqKey, 'llama-3.3-70b-versatile'),
+      tryJson(OR, openrouterKey, 'meta-llama/llama-3.3-70b-instruct:free'),
+      tryJson(OR, openrouterKey, 'qwen/qwen3-coder:free'),
+    ])
+  } catch {
+    // All AI failed — return default content so the site still generates
+    return getDefaultContent(form)
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function buildPrompt(form: BusinessForm): string {
   const businessTypeLabel = BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || form.businessType
   const isHe = form.language === 'he'
@@ -646,82 +988,14 @@ export default function App() {
     setError(null)
     setGeneratedHtml(null)
 
-    const messages = [
-      {
-        role: 'system' as const,
-        content: 'You are an elite front-end developer. Output only raw HTML/CSS/JS — no markdown, no explanations.',
-      },
-      {
-        role: 'user' as const,
-        content: buildPrompt(form),
-      },
-    ]
-
     try {
-      let html = ''
-      const diagErrors: string[] = []
-      const track = (name: string, p: Promise<string>) =>
-        p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
-
-      const GROQ = 'https://api.groq.com/openai/v1/chat/completions'
-      const OR = 'https://openrouter.ai/api/v1/chat/completions'
-
-      // Wave 1: Race all strong providers simultaneously
-      const wave1: Promise<string>[] = [
-        track('Pollinations-1', tryPollinations(messages, 5000)),
-        track('Pollinations-2', tryPollinations(messages, 5000)),
-      ]
-      if (groqKey) {
-        wave1.push(track('Groq-8b', tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages)))
-        wave1.push(track('Groq-70b', tryOpenAI(GROQ, groqKey, 'llama-3.3-70b-versatile', 4000, messages)))
-      }
-      if (openrouterKey) {
-        // Verified working free models on OpenRouter
-        ;['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free',
-          'google/gemma-3-27b-it:free', 'nousresearch/hermes-3-llama-3.1-405b:free'].forEach(m =>
-          wave1.push(track(`OR-${m.split('/')[1].replace(':free','')}`, tryOpenAI(OR, openrouterKey, m, 5000, messages)))
-        )
-      }
-      try { html = await Promise.any(wave1) } catch { /* wave 1 all failed */ }
-
-      // Wave 2: Auto-retry Groq if it was rate-limited with a short wait
-      if (!html && groqKey) {
-        const groqErr = diagErrors.find(e => e.includes('Groq'))
-        const waitMatch = groqErr?.match(/try again in ([\d.]+)s/)
-        const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 2 : 0
-        if (waitSec > 0 && waitSec <= 35) {
-          await new Promise(r => setTimeout(r, waitSec * 1000))
-          try { html = await tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages) }
-          catch(e) { diagErrors.push(`Groq-retry: ${(e as Error)?.message}`) }
-        }
-      }
-
-      if (!html) throw new Error(`כל ספקי ה-AI נכשלו:\n${diagErrors.join('\n')}`)
-
-      // Strip markdown code fences if present
-      html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
-
-      // Inject real base64 data in place of placeholders
-      if (form.logo) {
-        html = html.replaceAll('__LOGO__', form.logo)
-      }
-      form.images.forEach((src, i) => {
-        html = html.replaceAll(`__IMG_${i + 1}__`, src)
-      })
-
-      // Post-process: remove testimonials, fix contact form, inject real business data
-      html = removeTestimonials(html)
-      html = removeStats(html)
-      html = fixContactForm(html, form.email, form.businessName)
-      html = injectBusinessData(html, form.phone, form.email, form.address)
-      html = fixBusinessName(html, form.businessName)
-
+      // Step 1: Generate text content via AI (small JSON output — any model can do this)
+      const content = await generateSiteContent(form, groqKey, openrouterKey)
+      // Step 2: Build the HTML using our professional template (guaranteed great design)
+      const html = buildHtmlFromTemplate(form, content)
       setGeneratedHtml(html)
     } catch (err) {
-      const msg = err instanceof Error
-        ? (err.name === 'AbortError' ? 'הבקשה לקחה יותר מ-90 שניות — נסה שוב' : err.message)
-        : String(err)
-      setError(`שגיאה ביצירת האתר: ${msg}`)
+      setError(`שגיאה ביצירת האתר: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setLoading(false)
     }
@@ -751,70 +1025,11 @@ export default function App() {
     setRefineLoading(true)
     setRefineError(null)
 
-    // Use the full detailed prompt (same as generate) + append the change request
-    const fullPrompt = buildPrompt(form)
-    const refinePrompt = fullPrompt.replace(
-      'START WITH <!DOCTYPE html>',
-      `IMPORTANT CHANGE TO APPLY NOW: ${refinementInput}\nSTART WITH <!DOCTYPE html>`
-    )
-
-    const messages = [
-      { role: 'system' as const, content: 'You are an elite front-end developer. Output only raw HTML/CSS/JS — no markdown, no explanations.' },
-      { role: 'user' as const, content: refinePrompt },
-    ]
-
     try {
-      let html = ''
-      const diagErrors: string[] = []
-      const track = (name: string, p: Promise<string>) =>
-        p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
-
-      const GROQ = 'https://api.groq.com/openai/v1/chat/completions'
-      const OR = 'https://openrouter.ai/api/v1/chat/completions'
-
-      // Wave 1: Race all strong providers simultaneously
-      const wave1: Promise<string>[] = [
-        track('Pollinations-1', tryPollinations(messages, 5000)),
-        track('Pollinations-2', tryPollinations(messages, 5000)),
-      ]
-      if (groqKey) {
-        wave1.push(track('Groq-8b', tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages)))
-        wave1.push(track('Groq-70b', tryOpenAI(GROQ, groqKey, 'llama-3.3-70b-versatile', 4000, messages)))
-      }
-      if (openrouterKey) {
-        // Verified working free models on OpenRouter
-        ;['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free',
-          'google/gemma-3-27b-it:free', 'nousresearch/hermes-3-llama-3.1-405b:free'].forEach(m =>
-          wave1.push(track(`OR-${m.split('/')[1].replace(':free','')}`, tryOpenAI(OR, openrouterKey, m, 5000, messages)))
-        )
-      }
-      try { html = await Promise.any(wave1) } catch { /* wave 1 all failed */ }
-
-      // Wave 2: Auto-retry Groq if it was rate-limited with a short wait
-      if (!html && groqKey) {
-        const groqErr = diagErrors.find(e => e.includes('Groq'))
-        const waitMatch = groqErr?.match(/try again in ([\d.]+)s/)
-        const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 2 : 0
-        if (waitSec > 0 && waitSec <= 35) {
-          await new Promise(r => setTimeout(r, waitSec * 1000))
-          try { html = await tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages) }
-          catch(e) { diagErrors.push(`Groq-retry: ${(e as Error)?.message}`) }
-        }
-      }
-
-      if (!html) throw new Error(`כל ספקי ה-AI נכשלו:\n${diagErrors.join('\n')}`)
-
-      html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
-
-      if (form.logo) html = html.replaceAll('__LOGO__', form.logo)
-      form.images.forEach((src, i) => { html = html.replaceAll(`__IMG_${i + 1}__`, src) })
-
-      html = removeTestimonials(html)
-      html = removeStats(html)
-      html = fixContactForm(html, form.email, form.businessName)
-      html = injectBusinessData(html, form.phone, form.email, form.address)
-      html = fixBusinessName(html, form.businessName)
-
+      // Re-generate content with the refinement instruction baked in
+      const refineForm = { ...form, description: `${form.description}\n\nVARIATION REQUEST: ${refinementInput}` }
+      const content = await generateSiteContent(refineForm, groqKey, openrouterKey)
+      const html = buildHtmlFromTemplate(form, content) // use original form for data (phone/email/etc.)
       setPreviousHtml(generatedHtml)
       setGeneratedHtml(html)
       setRefinementInput('')
