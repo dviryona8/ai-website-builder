@@ -513,22 +513,43 @@ async function generateSiteContent(
     ? `\nBusiness content provided by user:\n${form.sources.map(s => s.content).join('\n').slice(0, 1500)}`
     : ''
 
-  const prompt = `Generate website content as JSON for this business.
-Name: "${form.businessName}"
-Type: ${typeLabel}
-Description: ${form.description || 'Professional business'}
-Language: ${isHe ? 'Hebrew (all text in Hebrew)' : 'English'}${sourcesText}
+  const lang = isHe ? 'Hebrew' : 'English'
+  const prompt = `You are writing marketing copy for a professional business website.
+Business name: "${form.businessName}"
+Business type: ${typeLabel}
+Business description: ${form.description || 'Professional business providing quality services'}
+Write ALL text in ${lang}.${sourcesText}
 
-Return ONLY this JSON (no markdown, no explanation):
-{"heroTitle":"5-8 word headline","heroSub":"1-2 sentence value proposition","services":[{"title":"...","desc":"2-3 sentences","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"},{"title":"...","desc":"...","icon":"fa-ICONNAME"}],"aboutText":"2 paragraphs\\nusing the description","ctaTitle":"action headline"}
+Return ONLY valid JSON (no markdown fences, no explanation before or after):
+{
+  "heroTitle": "compelling 5-8 word marketing headline in ${lang}",
+  "heroSub": "1-2 sentence elevator pitch based on the description above",
+  "services": [
+    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-code"},
+    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-users"},
+    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-rocket"},
+    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-shield"},
+    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-star"},
+    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-chart-line"}
+  ],
+  "aboutText": "paragraph about the business based on the description above\\nanother paragraph",
+  "ctaTitle": "call-to-action headline"
+}
 
-Use real Font Awesome 6 icon names (fa-code, fa-users, fa-shield, fa-rocket, fa-star, fa-wrench, fa-heart, fa-leaf etc.).
-Base content on the description. Do not invent statistics.`
+RULES: Never use Lorem ipsum. Never use placeholder text. Base everything on the description. Use Font Awesome 6 icon names.`
 
   const msgs = [
-    { role: 'system' as const, content: 'You generate website content JSON. Return only valid JSON, nothing else.' },
+    { role: 'system' as const, content: `You write professional website copy in ${lang}. Return only valid JSON.` },
     { role: 'user' as const, content: prompt },
   ]
+
+  const isGoodContent = (c: SiteContent): boolean => {
+    if (!c.heroTitle || c.heroTitle.length < 5 || c.heroTitle.length > 200) return false
+    if (c.heroTitle.toLowerCase().includes('lorem')) return false
+    if (!Array.isArray(c.services) || c.services.length < 3) return false
+    if (c.services.some(s => !s.title || s.title.toLowerCase().includes('lorem') || (s.desc || '').toLowerCase().includes('lorem ipsum'))) return false
+    return true
+  }
 
   const tryJson = async (url: string, key: string | null, model: string): Promise<SiteContent> => {
     const ctrl = new AbortController()
@@ -536,21 +557,22 @@ Base content on the description. Do not invent statistics.`
     const headers: Record<string, string> = { 'Content-Type': 'application/json' }
     if (key) { headers['Authorization'] = `Bearer ${key}`; headers['HTTP-Referer'] = window.location.origin }
     try {
-      const res = await fetch(url, { method: 'POST', signal: ctrl.signal, headers, body: JSON.stringify({ model, max_tokens: 1200, messages: msgs }) })
+      const res = await fetch(url, { method: 'POST', signal: ctrl.signal, headers, body: JSON.stringify({ model, max_tokens: 1400, messages: msgs }) })
       clearTimeout(tid)
       if (!res.ok) throw new Error(`${res.status}`)
       const data = await res.json()
       const text = data.choices?.[0]?.message?.content?.trim() ?? ''
-      const match = text.match(/\{[\s\S]*\}/)
-      if (!match) throw new Error('no JSON')
+      const match = text.match(/\{[\s\S]*?\}(?=\s*$|\s*```|\s*\n\s*\n)/s) || text.match(/\{[\s\S]*\}/)
+      if (!match) throw new Error('no JSON in response')
       const parsed = JSON.parse(match[0]) as SiteContent
-      if (!parsed.heroTitle || !Array.isArray(parsed.services)) throw new Error('invalid structure')
+      if (!isGoodContent(parsed)) throw new Error('content quality check failed')
       return parsed
     } catch (e) { clearTimeout(tid); throw e }
   }
 
   const GROQ = 'https://api.groq.com/openai/v1/chat/completions'
   const OR = 'https://openrouter.ai/api/v1/chat/completions'
+  const POLL = 'https://text.pollinations.ai/openai'
 
   try {
     return await Promise.any([
@@ -558,6 +580,7 @@ Base content on the description. Do not invent statistics.`
       tryJson(GROQ, groqKey, 'llama-3.3-70b-versatile'),
       tryJson(OR, openrouterKey, 'meta-llama/llama-3.3-70b-instruct:free'),
       tryJson(OR, openrouterKey, 'qwen/qwen3-coder:free'),
+      tryJson(POLL, null, 'openai-large'),
     ])
   } catch {
     // All AI failed — return default content so the site still generates
