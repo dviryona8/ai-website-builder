@@ -434,9 +434,11 @@ function BusinessHoursEditor({
 }
 
 function isValidHtml(content: string): boolean {
-  // Must be a proper full-page HTML with key sections
-  if (content.length < 4000) return false
+  // Must be a full, styled website — not plain text or skeleton HTML
+  if (content.length < 5000) return false
   if (!content.includes('<!DOCTYPE') && !content.includes('<html')) return false
+  if (!content.includes('<style')) return false          // Must have CSS
+  if (!content.includes('background') && !content.includes('color:')) return false  // Must have color rules
   if (!content.includes('<nav') && !content.includes('<header')) return false
   if (!content.includes('<section')) return false
   if (!content.includes('</html>')) return false
@@ -661,27 +663,40 @@ export default function App() {
       const track = (name: string, p: Promise<string>) =>
         p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
 
-      // Wave 1: Race strong models only (weak models produce broken HTML)
+      const GROQ = 'https://api.groq.com/openai/v1/chat/completions'
+      const OR = 'https://openrouter.ai/api/v1/chat/completions'
+
+      // Wave 1: Race all strong providers simultaneously
       const wave1: Promise<string>[] = [
-        track('Pollinations', tryPollinations(messages, 5000)),
+        track('Pollinations-1', tryPollinations(messages, 5000)),
         track('Pollinations-2', tryPollinations(messages, 5000)),
       ]
-      if (groqKey) wave1.push(track('Groq-8b', tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages)))
+      if (groqKey) {
+        wave1.push(track('Groq-8b', tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages)))
+        wave1.push(track('Groq-70b', tryOpenAI(GROQ, groqKey, 'llama-3.3-70b-versatile', 4000, messages)))
+      }
       if (openrouterKey) {
-        // Only large/capable models for HTML generation
-        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free'].forEach(m =>
-          wave1.push(track(`OR-${m.split('/')[1]}`, tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
+        // Verified working free models on OpenRouter
+        ;['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free',
+          'google/gemma-3-27b-it:free', 'nousresearch/hermes-3-llama-3.1-405b:free'].forEach(m =>
+          wave1.push(track(`OR-${m.split('/')[1].replace(':free','')}`, tryOpenAI(OR, openrouterKey, m, 5000, messages)))
         )
       }
       try { html = await Promise.any(wave1) } catch { /* wave 1 all failed */ }
 
-      // Wave 2: Fallback — Groq 70b
+      // Wave 2: Auto-retry Groq if it was rate-limited with a short wait
       if (!html && groqKey) {
-        try { html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages) }
-        catch(e) { diagErrors.push(`Groq-70b: ${(e as Error)?.message}`) }
+        const groqErr = diagErrors.find(e => e.includes('Groq'))
+        const waitMatch = groqErr?.match(/try again in ([\d.]+)s/)
+        const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 2 : 0
+        if (waitSec > 0 && waitSec <= 35) {
+          await new Promise(r => setTimeout(r, waitSec * 1000))
+          try { html = await tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages) }
+          catch(e) { diagErrors.push(`Groq-retry: ${(e as Error)?.message}`) }
+        }
       }
 
-      if (!html) throw new Error(`כל ספקי ה-AI נכשלו: ${diagErrors.slice(0,4).join(' | ')}`)
+      if (!html) throw new Error(`כל ספקי ה-AI נכשלו:\n${diagErrors.join('\n')}`)
 
       // Strip markdown code fences if present
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
@@ -736,23 +751,15 @@ export default function App() {
     setRefineLoading(true)
     setRefineError(null)
 
-    const isHe = form.language === 'he'
-    const phoneVal = form.phone || '050-0000000'
-    const emailVal = form.email || ''
-    const waNum = phoneVal.replace(/\D/g, '')
-
-    const refinePrompt = `Build a dark-theme single-page website. Output ONLY raw HTML, no markdown.
-BUSINESS: ${form.businessName} | ${BUSINESS_TYPES.find(t => t.value === form.businessType)?.label || form.businessType}
-DESCRIPTION: ${form.description || ''}
-PHONE: ${phoneVal} | EMAIL: ${emailVal || 'none'} | WHATSAPP: https://wa.me/${waNum}
-COLOR: ${form.primaryColor} | LANG: ${isHe ? 'Hebrew RTL (Heebo font)' : 'English LTR (Inter font)'}
-IMPORTANT CHANGE TO APPLY: ${refinementInput}
-Sections: nav, hero, services, about, contact (form + info), footer. No testimonials.
-Contact form: JS mailto. WhatsApp floating button.
-START WITH <!DOCTYPE html>`
+    // Use the full detailed prompt (same as generate) + append the change request
+    const fullPrompt = buildPrompt(form)
+    const refinePrompt = fullPrompt.replace(
+      'START WITH <!DOCTYPE html>',
+      `IMPORTANT CHANGE TO APPLY NOW: ${refinementInput}\nSTART WITH <!DOCTYPE html>`
+    )
 
     const messages = [
-      { role: 'system' as const, content: 'You are an elite front-end developer. Output only raw HTML — no markdown, no explanations.' },
+      { role: 'system' as const, content: 'You are an elite front-end developer. Output only raw HTML/CSS/JS — no markdown, no explanations.' },
       { role: 'user' as const, content: refinePrompt },
     ]
 
@@ -762,27 +769,40 @@ START WITH <!DOCTYPE html>`
       const track = (name: string, p: Promise<string>) =>
         p.catch(e => { diagErrors.push(`${name}: ${e?.message ?? e}`); throw e })
 
-      // Wave 1: Race strong models only (weak models produce broken HTML)
+      const GROQ = 'https://api.groq.com/openai/v1/chat/completions'
+      const OR = 'https://openrouter.ai/api/v1/chat/completions'
+
+      // Wave 1: Race all strong providers simultaneously
       const wave1: Promise<string>[] = [
-        track('Pollinations', tryPollinations(messages, 5000)),
+        track('Pollinations-1', tryPollinations(messages, 5000)),
         track('Pollinations-2', tryPollinations(messages, 5000)),
       ]
-      if (groqKey) wave1.push(track('Groq-8b', tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.1-8b-instant', 4000, messages)))
+      if (groqKey) {
+        wave1.push(track('Groq-8b', tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages)))
+        wave1.push(track('Groq-70b', tryOpenAI(GROQ, groqKey, 'llama-3.3-70b-versatile', 4000, messages)))
+      }
       if (openrouterKey) {
-        // Only large/capable models for HTML generation
-        ['qwen/qwen3-coder:free', 'meta-llama/llama-3.3-70b-instruct:free', 'deepseek/deepseek-r1:free'].forEach(m =>
-          wave1.push(track(`OR-${m.split('/')[1]}`, tryOpenAI('https://openrouter.ai/api/v1/chat/completions', openrouterKey, m, 5000, messages)))
+        // Verified working free models on OpenRouter
+        ;['meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-coder:free',
+          'google/gemma-3-27b-it:free', 'nousresearch/hermes-3-llama-3.1-405b:free'].forEach(m =>
+          wave1.push(track(`OR-${m.split('/')[1].replace(':free','')}`, tryOpenAI(OR, openrouterKey, m, 5000, messages)))
         )
       }
       try { html = await Promise.any(wave1) } catch { /* wave 1 all failed */ }
 
-      // Wave 2: Fallback — Groq 70b
+      // Wave 2: Auto-retry Groq if it was rate-limited with a short wait
       if (!html && groqKey) {
-        try { html = await tryOpenAI('https://api.groq.com/openai/v1/chat/completions', groqKey, 'llama-3.3-70b-versatile', 4000, messages) }
-        catch(e) { diagErrors.push(`Groq-70b: ${(e as Error)?.message}`) }
+        const groqErr = diagErrors.find(e => e.includes('Groq'))
+        const waitMatch = groqErr?.match(/try again in ([\d.]+)s/)
+        const waitSec = waitMatch ? Math.ceil(parseFloat(waitMatch[1])) + 2 : 0
+        if (waitSec > 0 && waitSec <= 35) {
+          await new Promise(r => setTimeout(r, waitSec * 1000))
+          try { html = await tryOpenAI(GROQ, groqKey, 'llama-3.1-8b-instant', 4000, messages) }
+          catch(e) { diagErrors.push(`Groq-retry: ${(e as Error)?.message}`) }
+        }
       }
 
-      if (!html) throw new Error(`כל ספקי ה-AI נכשלו: ${diagErrors.slice(0,4).join(' | ')}`)
+      if (!html) throw new Error(`כל ספקי ה-AI נכשלו:\n${diagErrors.join('\n')}`)
 
       html = html.replace(/^```html?\n?/i, '').replace(/\n?```$/i, '').trim()
 
