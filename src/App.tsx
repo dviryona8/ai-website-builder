@@ -238,20 +238,62 @@ interface SiteContent {
 function getDefaultContent(form: BusinessForm): SiteContent {
   const isHe = form.language === 'he'
   const n = form.businessName
-  const desc = form.description || ''
+  const desc = form.description?.trim() || ''
+
+  // Type-specific fallback services so even the fallback looks relevant
+  type ServiceDef = { title: string; desc: string; icon: string }
+  const typeServices: Record<string, ServiceDef[]> = {
+    restaurant: [
+      { title: isHe ? 'תפריט עשיר ומגוון' : 'Rich & Varied Menu', desc: isHe ? 'מגוון רחב של מנות טריות ומוכנות מדי יום בקפידה מהמרכיבים הטובים ביותר.' : 'A wide variety of dishes prepared fresh daily from the finest ingredients.', icon: 'fa-utensils' },
+      { title: isHe ? 'ארוחות בוקר' : 'Breakfast', desc: isHe ? 'התחילו את היום עם ארוחת בוקר טעימה ועשירה. אנחנו פתוחים כל בוקר עם מגוון אפשרויות.' : 'Start your day with a delicious breakfast. Open every morning with plenty of options.', icon: 'fa-sun' },
+      { title: isHe ? 'קייטרינג לאירועים' : 'Event Catering', desc: isHe ? 'מספקים שירותי קייטרינג מקצועיים לאירועים פרטיים ועסקיים מכל סוג וגודל.' : 'Professional catering for private and corporate events of all sizes.', icon: 'fa-champagne-glasses' },
+      { title: isHe ? 'חלל לאירועים פרטיים' : 'Private Event Space', desc: isHe ? 'חלל אלגנטי ומאובזר לאירוח אירועים קטנים ובינוניים באווירה חמימה ואינטימית.' : 'Elegant venue available for private and intimate gatherings.', icon: 'fa-building' },
+      { title: isHe ? 'משלוחים לבית' : 'Home Delivery', desc: isHe ? 'שירות משלוחים מהיר ואמין עד הבית. הזמינו בקלות דרך הטלפון או האתר שלנו.' : 'Fast and reliable delivery straight to your door. Order by phone or online.', icon: 'fa-motorcycle' },
+      { title: isHe ? 'מנות טבעוניות' : 'Vegan Options', desc: isHe ? 'מבחר מנות טבעוניות וצמחוניות טעימות המותאמות לכל אורח חיים ודרישה תזונתית.' : 'Delicious vegan and vegetarian options crafted for every lifestyle.', icon: 'fa-leaf' },
+    ],
+    clinic: [
+      { title: isHe ? 'ייעוץ רפואי' : 'Medical Consultation', desc: isHe ? 'ייעוץ רפואי מקיף ומקצועי עם רופאים מנוסים. אנחנו מקשיבים ומספקים מענה מותאם אישית.' : 'Comprehensive medical consultations with experienced doctors tailored to your needs.', icon: 'fa-stethoscope' },
+      { title: isHe ? 'בדיקות אבחון' : 'Diagnostic Tests', desc: isHe ? 'מגוון בדיקות אבחון מתקדמות לאיתור מוקדם ומדויק של בעיות בריאות שונות.' : 'Advanced diagnostic tests for early and accurate detection of health conditions.', icon: 'fa-microscope' },
+      { title: isHe ? 'מעקב וטיפול' : 'Follow-up Care', desc: isHe ? 'תוכניות מעקב וטיפול אישיות לכל מטופל, כולל ביקורים תקופתיים ותמיכה מתמשכת.' : 'Personalized follow-up and treatment plans with ongoing support for every patient.', icon: 'fa-heart-pulse' },
+      { title: isHe ? 'רפואה מונעת' : 'Preventive Medicine', desc: isHe ? 'שירותי רפואה מונעת ובדיקות שגרתיות לשמירה על בריאות מיטבית לאורך זמן.' : 'Preventive medicine and routine check-ups to maintain optimal long-term health.', icon: 'fa-shield-halved' },
+      { title: isHe ? 'תזונה ואורח חיים' : 'Nutrition & Lifestyle', desc: isHe ? 'ייעוץ תזונתי ועידוד אורח חיים בריא המותאם למצבך הרפואי ולמטרותיך האישיות.' : 'Nutritional guidance and healthy lifestyle coaching tailored to your medical profile.', icon: 'fa-apple-whole' },
+      { title: isHe ? 'שעות גמישות' : 'Flexible Hours', desc: isHe ? 'קבעו תור בשעות הנוחות לכם. אנחנו מציעים שעות ערב וסופ"ש לנוחיותכם.' : 'Book appointments at hours that suit you, including evenings and weekends.', icon: 'fa-clock' },
+    ],
+    lawyer: [
+      { title: isHe ? 'ייעוץ משפטי' : 'Legal Consultation', desc: isHe ? 'ייעוץ משפטי ראשוני מקיף לבחינת מצבכם המשפטי ובחירת הדרך הנכונה.' : 'Comprehensive initial legal consultation to assess your situation and choose the right path.', icon: 'fa-scale-balanced' },
+      { title: isHe ? 'ייצוג בבית משפט' : 'Court Representation', desc: isHe ? 'ייצוג מקצועי ואפקטיבי בבתי משפט בכל הערכאות, כולל בג"ץ ובית משפט עליון.' : 'Professional representation in all court levels, including Supreme Court.', icon: 'fa-gavel' },
+      { title: isHe ? 'ניסוח חוזים' : 'Contract Drafting', desc: isHe ? 'ניסוח ובדיקת חוזים עסקיים ואישיים להגנה מלאה על זכויותיכם וצמצום סיכונים.' : 'Drafting and reviewing business and personal contracts to protect your rights.', icon: 'fa-file-contract' },
+      { title: isHe ? 'דיני עבודה' : 'Employment Law', desc: isHe ? 'טיפול בסכסוכי עבודה, פיטורין, זכויות עובדים ומעסיקים בהתאם לחוק הישראלי.' : 'Handling employment disputes, termination, and employee and employer rights.', icon: 'fa-briefcase' },
+      { title: isHe ? 'נדל"ן וקרקעות' : 'Real Estate Law', desc: isHe ? 'ליווי עסקאות נדל"ן, רישום בטאבו, חוזי שכירות ורכישה בצורה מקצועית ובטוחה.' : 'Guiding real estate transactions, land registration, and purchase agreements safely.', icon: 'fa-house' },
+      { title: isHe ? 'דיני משפחה' : 'Family Law', desc: isHe ? 'טיפול רגיש ומקצועי בענייני גירושין, משמורת ילדים ומזונות עם דגש על הגנת הלקוח.' : 'Sensitive and professional handling of divorce, custody, and alimony matters.', icon: 'fa-people-roof' },
+    ],
+    gym: [
+      { title: isHe ? 'אימוני כוח' : 'Strength Training', desc: isHe ? 'תוכניות אימון כוח מקצועיות עם ציוד מתקדם, מתאים לכל רמות הכושר.' : 'Professional strength training programs with advanced equipment for all fitness levels.', icon: 'fa-dumbbell' },
+      { title: isHe ? 'שיעורי כושר קבוצתיים' : 'Group Fitness Classes', desc: isHe ? 'שיעורים קבוצתיים דינמיים ומהנים: ספינינג, יוגה, פילאטיס, זומבה ועוד.' : 'Dynamic group classes including spinning, yoga, pilates, zumba and more.', icon: 'fa-people-group' },
+      { title: isHe ? 'אימון אישי' : 'Personal Training', desc: isHe ? 'מאמנים מוסמכים שיבנו לכם תוכנית אישית ויניעו אתכם להשיג את המטרות שלכם.' : 'Certified trainers build personalized programs to help you reach your goals.', icon: 'fa-user-check' },
+      { title: isHe ? 'תזונת ספורט' : 'Sports Nutrition', desc: isHe ? 'ייעוץ תזונתי מותאם לפעילות גופנית ולמטרותיכם הספציפיות, כולל תפריטים מותאמים.' : 'Nutrition advice tailored to your physical activity and specific fitness goals.', icon: 'fa-apple-whole' },
+      { title: isHe ? 'שעות פתיחה נוחות' : 'Convenient Hours', desc: isHe ? 'פתוחים שש ימים בשבוע עם שעות מורחבות כדי שתוכלו להתאמן בזמן שנוח לכם.' : 'Open six days a week with extended hours so you can train when it suits you.', icon: 'fa-clock' },
+      { title: isHe ? 'ציוד מקצועי' : 'Professional Equipment', desc: isHe ? 'ציוד מקצועי ומתוחזק כולל מכשירים חדישים לכל סוגי האימון החשמלי והכבד.' : 'Professional, well-maintained equipment including modern machines for all training types.', icon: 'fa-gear' },
+    ],
+  }
+
+  const defaultServices: ServiceDef[] = [
+    { title: isHe ? 'שירות מקצועי' : 'Professional Service', desc: isHe ? 'אנחנו מספקים שירות מקצועי ואיכותי המותאם לצרכי כל לקוח ולקוח בנפרד.' : 'We provide professional, high-quality service tailored to each client\'s individual needs.', icon: 'fa-star' },
+    { title: isHe ? 'ניסיון מוכח' : 'Proven Experience', desc: isHe ? 'שנים של ניסיון בתחום מאפשרות לנו להציע פתרונות חכמים ויעילים לכל אתגר.' : 'Years of experience allow us to offer smart, efficient solutions for every challenge.', icon: 'fa-trophy' },
+    { title: isHe ? 'שירות אישי' : 'Personal Attention', desc: isHe ? 'כל לקוח מקבל יחס אישי וקשוב. אנחנו כאן בשבילכם בכל שלב בדרך.' : 'Every client receives personal and attentive service. We are here for you every step of the way.', icon: 'fa-user-check' },
+    { title: isHe ? 'זמינות מלאה' : 'Full Availability', desc: isHe ? 'זמינים עבורכם לכל שאלה ובקשה, בטלפון, בוואטסאפ ובאימייל בכל שעות היום.' : 'Available for any question or request — by phone, WhatsApp or email throughout the day.', icon: 'fa-clock' },
+    { title: isHe ? 'מחירים הוגנים' : 'Fair Pricing', desc: isHe ? 'תמחור שקוף, הוגן וללא הפתעות. הצעת מחיר מפורטת לפני תחילת כל עבודה.' : 'Transparent, fair pricing with no surprises. Detailed quote provided before any work begins.', icon: 'fa-tag' },
+    { title: isHe ? 'תוצאות מוכחות' : 'Proven Results', desc: isHe ? 'עשרות לקוחות מרוצים ברחבי הארץ. אנחנו גאים בתוצאות שאנחנו מצליחים להשיג.' : 'Dozens of satisfied clients nationwide. We are proud of the results we consistently achieve.', icon: 'fa-chart-line' },
+  ]
+
+  const services = typeServices[form.businessType] || defaultServices
+
   return {
     heroTitle: isHe ? `${n} — הפתרון המקצועי שחיפשת` : `${n} — Professional Solutions`,
-    heroSub: desc.slice(0, 180) || (isHe ? 'ברוכים הבאים לעסק שלנו' : 'Welcome to our business'),
-    services: [
-      { title: isHe ? 'שירות מקצועי' : 'Professional Service', desc: isHe ? 'אנחנו מספקים שירות מקצועי ואיכותי ללקוחותינו.' : 'We provide high-quality professional service.', icon: 'fa-star' },
-      { title: isHe ? 'ניסיון רב' : 'Extensive Experience', desc: isHe ? 'שנים של ניסיון בתחום.' : 'Years of industry expertise.', icon: 'fa-trophy' },
-      { title: isHe ? 'שירות אישי' : 'Personal Attention', desc: isHe ? 'טיפול אישי לכל לקוח.' : 'Personal attention to every client.', icon: 'fa-user-check' },
-      { title: isHe ? 'זמינות מלאה' : 'Full Availability', desc: isHe ? 'זמינים עבורך לכל שאלה.' : 'Available for any question.', icon: 'fa-clock' },
-      { title: isHe ? 'מחירים הוגנים' : 'Fair Pricing', desc: isHe ? 'תמחור שקוף והוגן.' : 'Transparent and fair pricing.', icon: 'fa-tag' },
-      { title: isHe ? 'תוצאות מוכחות' : 'Proven Results', desc: isHe ? 'לקוחות מרוצים ברחבי הארץ.' : 'Satisfied clients nationwide.', icon: 'fa-chart-line' },
-    ],
-    aboutText: desc || (isHe ? `אנחנו ${n}.\nאנחנו מחויבים לספק את השירות הטוב ביותר.` : `We are ${n}.\nWe are committed to the highest service.`),
-    ctaTitle: isHe ? 'מוכנים להתחיל?' : 'Ready to Get Started?',
+    heroSub: desc.slice(0, 180) || (isHe ? `${n} מספקים שירות מקצועי ואיכותי. אנחנו כאן כדי לעזור לכם להשיג את המטרות שלכם.` : `${n} provides professional, high-quality service. We are here to help you achieve your goals.`),
+    services,
+    aboutText: desc || (isHe ? `אנחנו ${n}, עסק מקצועי המחויב לשירות הגבוה ביותר.\nאנחנו עובדים קשה כדי להבטיח שכל לקוח יקבל את הפתרון הטוב ביותר עבורו.` : `We are ${n}, a professional business committed to the highest service standards.\nWe work hard to ensure every client receives the best solution for their needs.`),
+    ctaTitle: isHe ? 'מוכנים להתחיל? צרו איתנו קשר!' : 'Ready to Get Started? Contact Us!',
   }
 }
 
@@ -523,40 +565,86 @@ async function generateSiteContent(
     : ''
 
   const lang = isHe ? 'Hebrew' : 'English'
-  const prompt = `You are writing marketing copy for a professional business website.
+  const bizDesc = form.description?.trim() || `Professional ${typeLabel} business`
+
+  // Build realistic example services based on business type so the AI has fewer excuses to invent placeholders
+  const exampleServices: Record<string, string[]> = {
+    restaurant: ['תפריט עשיר ומגוון', 'ארוחות בוקר', 'קייטרינג לאירועים'],
+    clinic:     ['ייעוץ רפואי', 'בדיקות מקיפות', 'מעקב וטיפול'],
+    lawyer:     ['ייעוץ משפטי', 'ייצוג בבית משפט', 'ניסוח חוזים'],
+    gym:        ['אימוני כוח', 'שיעורי כושר קבוצתיים', 'אימון אישי'],
+    beauty:     ['טיפולי פנים', 'עיצוב שיער', 'טיפולי גוף'],
+    tech:       ['פיתוח תוכנה', 'תמיכה טכנית', 'ייעוץ טכנולוגי'],
+    construction:['בנייה ושיפוץ', 'עיצוב פנים', 'פרויקטים מסחריים'],
+    education:  ['קורסים פרטיים', 'הכנה לבגרות', 'סדנאות'],
+    realestate: ['מכירת נכסים', 'השכרת דירות', 'ייעוץ נדל"ן'],
+    other:      ['שירות מקצועי', 'ייעוץ אישי', 'פתרונות מותאמים'],
+  }
+  const examples = (exampleServices[form.businessType] || exampleServices.other).join(', ')
+
+  const prompt = `You are a professional copywriter. Write real marketing content for this business — NOT placeholder text.
+
 Business name: "${form.businessName}"
-Business type: ${typeLabel}
-Business description: ${form.description || 'Professional business providing quality services'}
-Write ALL text in ${lang}.${sourcesText}
+Business type: ${typeLabel} (example services for this type: ${examples})
+Description: ${bizDesc}
+Language: ${lang}${sourcesText}
 
-Return ONLY valid JSON (no markdown fences, no explanation before or after):
+CRITICAL RULES — failure means your output is rejected:
+1. Write ALL text in ${lang} only
+2. Every service title must be a REAL service this business offers (based on type + description)
+3. Every service description must be 2 real sentences (minimum 20 words total)
+4. NEVER write: "תיאור", "שתול", "כותרת", "placeholder", "A service", "B service", "service name", "description here"
+5. NEVER use Lorem ipsum or any filler text
+6. The business name in JSON must be EXACTLY: "${form.businessName}" — do NOT translate or transliterate it
+7. Base heroSub on the actual description above
+8. No markdown fences — return raw JSON only
+
+Return this exact JSON structure with real content:
 {
-  "heroTitle": "compelling 5-8 word marketing headline in ${lang}",
-  "heroSub": "1-2 sentence elevator pitch based on the description above",
+  "heroTitle": "real 5-8 word headline for ${form.businessName} in ${lang}",
+  "heroSub": "2 sentences about what ${form.businessName} actually does",
   "services": [
-    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-code"},
-    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-users"},
-    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-rocket"},
-    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-shield"},
-    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-star"},
-    {"title": "specific service name", "desc": "2 sentences describing this service", "icon": "fa-chart-line"}
+    {"title": "real service #1 name", "desc": "2 real sentences about this specific service", "icon": "fa-star"},
+    {"title": "real service #2 name", "desc": "2 real sentences about this specific service", "icon": "fa-bolt"},
+    {"title": "real service #3 name", "desc": "2 real sentences about this specific service", "icon": "fa-shield-halved"},
+    {"title": "real service #4 name", "desc": "2 real sentences about this specific service", "icon": "fa-rocket"},
+    {"title": "real service #5 name", "desc": "2 real sentences about this specific service", "icon": "fa-gem"},
+    {"title": "real service #6 name", "desc": "2 real sentences about this specific service", "icon": "fa-chart-line"}
   ],
-  "aboutText": "paragraph about the business based on the description above\\nanother paragraph",
-  "ctaTitle": "call-to-action headline"
-}
-
-RULES: Never use Lorem ipsum. Never use placeholder text. Base everything on the description. Use Font Awesome 6 icon names.`
+  "aboutText": "paragraph describing ${form.businessName} and its values\\nsecond paragraph about experience and commitment",
+  "ctaTitle": "short call-to-action headline in ${lang}"
+}`
 
   const msgs = [
-    { role: 'system' as const, content: `You write professional website copy in ${lang}. Return only valid JSON.` },
+    { role: 'system' as const, content: `You are a professional copywriter. You write real marketing content in ${lang}. You NEVER use placeholder text. Return only raw JSON with no markdown.` },
     { role: 'user' as const, content: prompt },
   ]
 
+  const PLACEHOLDER_WORDS = [
+    'lorem', 'placeholder', 'תיאור', 'שתול', 'כותרת', 'טקסט לדוגמה',
+    'service name', 'a service', 'b service', 'c service', 'd service',
+    'שירות א', 'שירות ב', 'שירות ג', 'שירות 1', 'שירות 2', 'שירות 3',
+    'title here', 'description here', 'your text', 'sample text',
+  ]
+  const hasPlaceholder = (s: string) => {
+    const low = s.toLowerCase()
+    return PLACEHOLDER_WORDS.some(w => low.includes(w))
+  }
+
   const isGoodContent = (c: SiteContent): boolean => {
     if (!c.heroTitle || c.heroTitle.length < 5 || c.heroTitle.length > 200) return false
-    if (c.heroTitle.toLowerCase().includes('lorem')) return false
+    if (hasPlaceholder(c.heroTitle)) return false
+    if (!c.heroSub || c.heroSub.length < 15) return false
+    if (hasPlaceholder(c.heroSub)) return false
     if (!Array.isArray(c.services) || c.services.length < 3) return false
-    if (c.services.some(s => !s.title || s.title.toLowerCase().includes('lorem') || (s.desc || '').toLowerCase().includes('lorem ipsum'))) return false
+    for (const s of c.services) {
+      if (!s.title || s.title.length < 3) return false
+      if (hasPlaceholder(s.title)) return false
+      if (!s.desc || s.desc.length < 20) return false
+      if (hasPlaceholder(s.desc)) return false
+      // Reject titles like "שתול | A service" that mix separators
+      if (s.title.includes(' | ') || s.title.includes(' / ')) return false
+    }
     return true
   }
 
