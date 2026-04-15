@@ -255,9 +255,18 @@ function getDefaultContent(form: BusinessForm): SiteContent {
   }
 }
 
+function hexToRgba(hex: string, alpha: number): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  return `rgba(${r},${g},${b},${alpha})`
+}
+
 function buildHtmlFromTemplate(form: BusinessForm, content: SiteContent): string {
   const { heroTitle, heroSub, services, aboutText, ctaTitle } = content
   const c = form.primaryColor
+  const rgba = (a: number) => hexToRgba(c, a)
   const isHe = form.language === 'he'
   const dir = isHe ? 'rtl' : 'ltr'
   const font = isHe ? 'Heebo' : 'Inter'
@@ -323,19 +332,19 @@ nav{position:fixed;top:0;width:100%;z-index:100;padding:.9rem 2rem;display:flex;
 .ham span{width:24px;height:2px;background:var(--txt);border-radius:2px;display:block}
 
 /* ── HERO ── */
-#hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:8rem 2rem 4rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at 20% 50%,color-mix(in srgb,var(--p) 12%,transparent) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,color-mix(in srgb,var(--p) 8%,transparent) 0%,transparent 50%),var(--bg)}
+#hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:8rem 2rem 4rem;position:relative;overflow:hidden;background:radial-gradient(ellipse at 20% 50%,${rgba(0.12)} 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,${rgba(0.08)} 0%,transparent 50%),var(--bg)}
 .blob{position:absolute;border-radius:50%;filter:blur(80px);opacity:.12}
 .blob1{width:500px;height:500px;background:var(--p);top:-80px;${isHe?'right':'left'}:-80px;animation:flt 7s ease-in-out infinite}
 .blob2{width:350px;height:350px;background:var(--p);bottom:-60px;${isHe?'left':'right'}:-40px;animation:flt 9s ease-in-out infinite reverse}
 @keyframes flt{0%,100%{transform:translateY(0)}50%{transform:translateY(-24px)}}
 .hero-inner{position:relative;z-index:1;max-width:820px}
-.hero-badge{display:inline-block;background:color-mix(in srgb,var(--p) 18%,transparent);color:var(--p);border:1px solid color-mix(in srgb,var(--p) 35%,transparent);padding:.35rem 1.1rem;border-radius:100px;font-size:.82rem;font-weight:700;margin-bottom:1.4rem;letter-spacing:.5px}
+.hero-badge{display:inline-block;background:${rgba(0.18)};color:var(--p);border:1px solid ${rgba(0.35)};padding:.35rem 1.1rem;border-radius:100px;font-size:.82rem;font-weight:700;margin-bottom:1.4rem;letter-spacing:.5px}
 .hero-title{font-size:clamp(2.2rem,5.5vw,4.2rem);font-weight:900;line-height:1.1;margin-bottom:1.2rem}
 .hero-title .hl{color:var(--p)}
 .hero-sub{font-size:1.1rem;color:var(--muted);line-height:1.75;max-width:580px;margin:0 auto 2.2rem}
 .hero-btns{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
 .btn-p{background:var(--p);color:#fff;padding:.85rem 1.8rem;border-radius:10px;font-weight:700;font-size:.95rem;display:inline-flex;align-items:center;gap:.5rem;transition:all .2s}
-.btn-p:hover{transform:translateY(-2px);box-shadow:0 10px 28px color-mix(in srgb,var(--p) 38%,transparent)}
+.btn-p:hover{transform:translateY(-2px);box-shadow:0 10px 28px ${rgba(0.38)}}
 .btn-o{border:1px solid var(--bdr);color:var(--txt);padding:.85rem 1.8rem;border-radius:10px;font-weight:600;font-size:.95rem;transition:all .2s}
 .btn-o:hover{border-color:var(--p);color:var(--p)}
 
@@ -346,8 +355,8 @@ nav{position:fixed;top:0;width:100%;z-index:100;padding:.9rem 2rem;display:flex;
 .sec-ttl{font-size:clamp(1.7rem,4vw,2.6rem);font-weight:800}
 .svc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:1.4rem;max-width:1100px;margin:0 auto}
 .svc-card{background:var(--card);border:1px solid var(--bdr);border-radius:16px;padding:1.8rem;transition:all .3s}
-.svc-card:hover{border-color:var(--p);transform:translateY(-4px);box-shadow:0 14px 40px color-mix(in srgb,var(--p) 15%,transparent)}
-.svc-icon{width:48px;height:48px;background:color-mix(in srgb,var(--p) 14%,transparent);border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--p);font-size:1.2rem;margin-bottom:1.1rem}
+.svc-card:hover{border-color:var(--p);transform:translateY(-4px);box-shadow:0 14px 40px ${rgba(0.15)}}
+.svc-icon{width:48px;height:48px;background:${rgba(0.14)};border-radius:11px;display:flex;align-items:center;justify-content:center;color:var(--p);font-size:1.2rem;margin-bottom:1.1rem}
 .svc-card h3{font-size:1.05rem;font-weight:700;margin-bottom:.5rem}
 .svc-card p{color:var(--muted);font-size:.88rem;line-height:1.65}
 
@@ -356,10 +365,10 @@ nav{position:fixed;top:0;width:100%;z-index:100;padding:.9rem 2rem;display:flex;
 .about-grid{display:grid;grid-template-columns:1fr 1fr;gap:3.5rem;max-width:1100px;margin:0 auto;align-items:center}
 .about-txt h2{font-size:clamp(1.6rem,3vw,2.3rem);font-weight:800;margin-bottom:1.3rem}
 .about-txt p{color:var(--muted);line-height:1.85;margin-bottom:.9rem}
-.about-vis{background:linear-gradient(135deg,color-mix(in srgb,var(--p) 18%,transparent),color-mix(in srgb,var(--p) 5%,transparent));border:1px solid var(--bdr);border-radius:20px;padding:3rem;text-align:center;font-size:4.5rem;color:var(--p);opacity:.75}
+.about-vis{background:linear-gradient(135deg,${rgba(0.18)},${rgba(0.05)});border:1px solid var(--bdr);border-radius:20px;padding:3rem;text-align:center;font-size:4.5rem;color:var(--p);opacity:.75}
 
 /* ── CTA BAND ── */
-#cta{padding:5rem 2rem;text-align:center;background:linear-gradient(135deg,color-mix(in srgb,var(--p) 14%,var(--bg)),var(--bg))}
+#cta{padding:5rem 2rem;text-align:center;background:linear-gradient(135deg,${rgba(0.14)},var(--bg))}
 #cta h2{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:900;margin-bottom:.8rem}
 #cta p{color:var(--muted);font-size:1.05rem;margin-bottom:1.8rem}
 
@@ -374,7 +383,7 @@ nav{position:fixed;top:0;width:100%;z-index:100;padding:.9rem 2rem;display:flex;
 .form-btn{width:100%;background:var(--p);color:#fff;border:none;padding:.95rem;border-radius:9px;font-size:.95rem;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .2s}
 .form-btn:hover{opacity:.85}
 .ci-item{display:flex;align-items:center;gap:.9rem;margin-bottom:1.1rem;color:var(--muted)}
-.ci-ico{width:38px;height:38px;background:color-mix(in srgb,var(--p) 14%,transparent);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--p);flex-shrink:0}
+.ci-ico{width:38px;height:38px;background:${rgba(0.14)};border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--p);flex-shrink:0}
 .ci-item a:hover{color:var(--p)}
 .hrs-tbl{width:100%;border-collapse:collapse;font-size:.84rem;margin-top:.8rem}
 .hrs-tbl td{padding:.35rem 0;color:var(--muted)}
