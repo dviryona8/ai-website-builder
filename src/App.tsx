@@ -673,11 +673,18 @@ Return this exact JSON structure with real content:
 
   try {
     return await Promise.any([
+      // Groq — fastest, usually responds in 1-3s
       tryJson(GROQ, groqKey, 'llama-3.1-8b-instant'),
       tryJson(GROQ, groqKey, 'llama-3.3-70b-versatile'),
+      // OpenRouter free models (diverse providers to avoid single-point 429)
       tryJson(OR, openrouterKey, 'meta-llama/llama-3.3-70b-instruct:free'),
       tryJson(OR, openrouterKey, 'qwen/qwen3-coder:free'),
-      tryJson(POLL, null, 'openai-large'),
+      tryJson(OR, openrouterKey, 'google/gemma-4-31b-it:free'),
+      tryJson(OR, openrouterKey, 'openai/gpt-oss-20b:free'),
+      // OpenRouter auto-router — picks any available free model
+      tryJson(OR, openrouterKey, 'openrouter/free'),
+      // Pollinations — free, no key, model name changed from openai-large to openai-fast
+      tryJson(POLL, null, 'openai-fast'),
     ])
   } catch {
     // All AI failed — return default content so the site still generates
@@ -943,7 +950,7 @@ function tryPollinations(messages: {role: string, content: string}[], maxTokens:
     fetch('https://text.pollinations.ai/openai', {
       method: 'POST', signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'openai-large', messages, max_tokens: maxTokens, stream: false, seed: Math.floor(Math.random() * 99999) }),
+      body: JSON.stringify({ model: 'openai-fast', messages, max_tokens: maxTokens, stream: false, seed: Math.floor(Math.random() * 99999) }),
     })
       .then(async res => {
         clearTimeout(timeoutId)
